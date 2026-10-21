@@ -1,0 +1,216 @@
+name: Staging Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: royal-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  check-source:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Laravel files
+        id: check
+        shell: bash
+        run: |
+          if [[ -f artisan && -f composer.json && -f composer.lock && -f public/index.php ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Laravel source is not available yet."
+          fi
+
+  test:
+    needs: check-source
+    if: needs.check-source.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_DATABASE: royal_test
+      DB_USERNAME: royal_test
+      DB_PASSWORD: test_password
+      REDIS_HOST: 127.0.0.1
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: redis
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: royal_test
+          POSTGRES_USER: royal_test
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U royal_test -d royal_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, redis, intl, zip, bcmath, pcntl
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+        env:
+          APP_ENV: testing
+
+      - name: Run migrations and tests
+        run: |
+          php artisan migrate --force
+          php artisan test
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: royal_test
+          DB_USERNAME: royal_test
+          DB_PASSWORD: test_password
+          REDIS_HOST: 127.0.0.1
+          CACHE_STORE: redis
+          QUEUE_CONNECTION: redis
+          SESSION_DRIVER: redis
+
+  verify-latest:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify latest main commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          DEPLOY_SHA: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_SHA="$(gh api "repos/${REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$LATEST_SHA" != "$DEPLOY_SHA" ]]; then
+            echo "A newer commit exists on main. Skipping deployment."
+            exit 1
+          fi
+          echo "Commit verified: $DEPLOY_SHA"
+
+  build:
+    needs: [check-source, test]
+    if: needs.check-source.outputs.ready == 'true' && needs.test.result == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push PHP image
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/php:${GITHUB_SHA}"
+          docker build -f docker/php/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Build and push Nginx image
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/nginx:${GITHUB_SHA}"
+          docker build -f docker/nginx/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+
+  deploy:
+    needs: [build, verify-latest]
+    if: needs.build.result == 'success' && needs.verify-latest.result == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout deployment files
+        uses: actions/checkout@v4
+
+      - name: Configure staging SSH
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_HOST: ${{ vars.STAGING_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 10 -t ed25519 "$STAGING_HOST" > ~/.ssh/staging_host_key
+          test -s ~/.ssh/staging_host_key
+
+          ACTUAL_FINGERPRINT="$(ssh-keygen -lf ~/.ssh/staging_host_key -E sha256 | awk '{print $2}')"
+          EXPECTED_FINGERPRINT="SHA256:brEViTsG5pnr/NZ1b5vAM1KzJKkvH5EzhfEY1ZpglIw"
+
+          if [[ "$ACTUAL_FINGERPRINT" != "$EXPECTED_FINGERPRINT" ]]; then
+            echo "ERROR: Staging server SSH fingerprint mismatch"
+            exit 1
+          fi
+
+          cat ~/.ssh/staging_host_key >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          rm ~/.ssh/staging_host_key
+          echo "Staging server identity verified successfully"
+
+      - name: Sync staging deployment files
+        env:
+          STAGING_HOST: ${{ vars.STAGING_HOST }}
+          STAGING_USER: ${{ vars.STAGING_USER }}
+        run: |
+          scp -o BatchMode=yes \
+            compose.backend.yaml \
+            "$STAGING_USER@$STAGING_HOST:/opt/royal-travel/staging/compose.backend.yaml"
+
+          scp -o BatchMode=yes \
+            scripts/deploy-staging.sh \
+            scripts/deploy-with-ghcr.sh \
+            "$STAGING_USER@$STAGING_HOST:/opt/royal-travel/staging/scripts/"
+
+          ssh -o BatchMode=yes "$STAGING_USER@$STAGING_HOST" \
+            "chmod 750 /opt/royal-travel/staging/scripts/deploy-staging.sh /opt/royal-travel/staging/scripts/deploy-with-ghcr.sh"
+
+      - name: Deploy backend to staging
+        env:
+          STAGING_HOST: ${{ vars.STAGING_HOST }}
+          STAGING_USER: ${{ vars.STAGING_USER }}
+          DEPLOY_SHA: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "$GHCR_TOKEN" | ssh -o BatchMode=yes \\
+            "$STAGING_USER@$STAGING_HOST" \\
+            "DEPLOY_SHA='$DEPLOY_SHA' GHCR_USER='$GHCR_USER' bash /opt/royal-travel/staging/scripts/deploy-with-ghcr.sh"
