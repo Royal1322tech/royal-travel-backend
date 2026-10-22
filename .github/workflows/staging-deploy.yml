@@ -3,6 +3,8 @@ name: Staging Deploy
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -107,6 +109,7 @@ jobs:
 
   verify-latest:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Verify latest main commit
@@ -126,7 +129,7 @@ jobs:
 
   build:
     needs: [check-source, test]
-    if: needs.check-source.outputs.ready == 'true' && needs.test.result == 'success'
+    if: github.event_name != 'pull_request' && needs.check-source.outputs.ready == 'true' && needs.test.result == 'success'
     runs-on: ubuntu-latest
 
     steps:
