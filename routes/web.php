@@ -1,6 +1,8 @@
-Route::get('/', fn () => response()->view('welcome'));
+
 
 <?php
+
+Route::get('/', fn () => response()->view('welcome'));
 
 use Illuminate\Support\Facades\Route;
 
