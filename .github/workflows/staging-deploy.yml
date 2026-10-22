@@ -214,6 +214,6 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          printf '%s\n' "$GHCR_TOKEN" | ssh -o BatchMode=yes \\
-            "$STAGING_USER@$STAGING_HOST" \\
+          printf '%s\n' "$GHCR_TOKEN" | ssh -o BatchMode=yes \
+            "$STAGING_USER@$STAGING_HOST" \
             "DEPLOY_SHA='$DEPLOY_SHA' GHCR_USER='$GHCR_USER' bash /opt/royal-travel/staging/scripts/deploy-with-ghcr.sh"
