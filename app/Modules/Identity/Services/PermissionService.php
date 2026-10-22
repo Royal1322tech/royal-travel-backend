@@ -1,0 +1,36 @@
+<?php
+
+namespace App\Modules\Identity\Services;
+
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+
+class PermissionService
+{
+    public function userCan(
+        User $user,
+        string $permission,
+        string $companyId
+    ): bool {
+        $membership = DB::table('rt_company_memberships')
+            ->where('user_id', $user->id)
+            ->where('company_id', $companyId)
+            ->where('status', 'active')
+            ->whereNotNull('approved_at')
+            ->exists();
+
+        if (! $membership) {
+            return false;
+        }
+
+        return DB::table('rt_user_roles as ur')
+            ->join('rt_roles as r', 'r.id', '=', 'ur.role_id')
+            ->join('rt_role_permissions as rp', 'rp.role_id', '=', 'r.id')
+            ->join('rt_permissions as p', 'p.id', '=', 'rp.permission_id')
+            ->where('ur.user_id', $user->id)
+            ->where('ur.company_id', $companyId)
+            ->where('r.portal', 'b2b')
+            ->where('p.code', $permission)
+            ->exists();
+    }
+}
