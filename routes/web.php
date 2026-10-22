@@ -1,3 +1,5 @@
+Route::get('/', fn () => response()->view('welcome'));
+
 <?php
 
 use Illuminate\Support\Facades\Route;
