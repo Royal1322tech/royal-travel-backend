@@ -1,10 +1,10 @@
 
-
 <?php
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => response()->view('welcome'));
 
-use Illuminate\Support\Facades\Route;
+
 
 Route::get('/admin/foundation-check', function () {
     return response()->view('foundation.check', [

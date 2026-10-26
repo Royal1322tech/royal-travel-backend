@@ -11,6 +11,10 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api/v1',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+         then: function (): void {
+        \Illuminate\Support\Facades\Route::middleware('web')
+            ->group(base_path('routes/admin.php'));
+    },
     )
     ->withMiddleware(function (Middleware $middleware): void {
 
@@ -19,10 +23,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
     $middleware->alias([
         'company.permission' => \App\Http\Middleware\EnsureCompanyPermission::class,
+        'admin.permission' => \App\Http\Middleware\EnsureAdminPermission::class,
     ]);
 
     $middleware->redirectGuestsTo(function ($request) {
-        if ($request->is('b2b/*')) {
+        if ($request->is('b2b/*') || $request->is('admin/*')) {
             abort(401, 'Unauthenticated.');
         }
 

@@ -33,4 +33,18 @@ class PermissionService
             ->where('p.code', $permission)
             ->exists();
     }
+
+
+    public function adminCan(User $user, string $permission): bool
+    {
+        return DB::table('rt_user_roles as ur')
+            ->join('rt_roles as r', 'r.id', '=', 'ur.role_id')
+            ->join('rt_role_permissions as rp', 'rp.role_id', '=', 'r.id')
+            ->join('rt_permissions as p', 'p.id', '=', 'rp.permission_id')
+            ->where('ur.user_id', $user->id)
+            ->whereNull('ur.company_id')
+            ->where('r.portal', 'admin')
+            ->where('p.code', $permission)
+            ->exists();
+    }
 }
