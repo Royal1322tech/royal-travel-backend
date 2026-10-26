@@ -32,3 +32,27 @@ Route::get('/bookings-test', function () {
         ]);
     });
 });
+
+// Temporary B2B Dashboard UI preview — dummy data only.
+Route::view('/ui-preview/b2b/dashboard', 'b2b.dashboard.index');
+
+// Temporary Hotel Offline Requests UI preview — dummy data only.
+Route::view('/ui-preview/b2b/bookings', 'b2b.bookings.index');
+
+// Temporary Booking Detail UI preview — dummy data only.
+Route::get('/ui-preview/b2b/bookings/{bookingId}', function (string $bookingId) {
+    abort_unless(
+        in_array($bookingId, ['RB-1048', 'RB-1049', 'RB-1050', 'RB-1051', 'RB-1052'], true),
+        404
+    );
+
+    return view('b2b.bookings.show', [
+        'bookingId' => $bookingId,
+    ]);
+});
+
+// Temporary Main Bookings UI preview — dummy data only.
+Route::view('/ui-preview/b2b/all-bookings', 'b2b.bookings.all');
+
+// Temporary Hotels UI preview — dummy data only.
+Route::view('/ui-preview/b2b/hotels', 'b2b.hotels.index');
