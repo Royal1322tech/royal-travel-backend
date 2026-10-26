@@ -46,6 +46,8 @@ class AdminDashboardAccessTest extends TestCase
 
     public function test_admin_with_dashboard_permission_can_access(): void
     {
+        $this->withoutVite();
+
         $user = User::factory()->create();
         $this->assignRoleWithPermission($user, 'admin', 'dashboard.view');
 
