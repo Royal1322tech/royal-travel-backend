@@ -27,20 +27,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ]);
 
     $middleware->redirectGuestsTo(function ($request) {
-        if ($request->is('b2b/*')) {
+        if ($request->is('b2b/*') || $request->is('admin/*')) {
             abort(401, 'Unauthenticated.');
         }
 
         return route('login');
     });
-
-    $middleware->redirectGuestsTo(function ($request) {
-    if ($request->is('b2b/*') || $request->is('admin/*')) {
-        abort(401, 'Unauthenticated.');
-    }
-
-    return route('login');
-});
 
 })
     ->withExceptions(function (Exceptions $exceptions): void {
