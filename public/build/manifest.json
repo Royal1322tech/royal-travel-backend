@@ -8,6 +8,10 @@
       "app.css"
     ]
   },
+  "resources/css/companies/index.css": {
+    "file": "assets/index-CXQrM-pl.css",
+    "src": "resources/css/companies/index.css"
+  },
   "resources/css/suppliers/index.css": {
     "file": "assets/index-CQDNMn64.css",
     "src": "resources/css/suppliers/index.css",
