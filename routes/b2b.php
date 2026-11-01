@@ -1,0 +1,31 @@
+
+<?php
+
+use App\Http\Controllers\B2B\Auth\PasswordSetupController;
+use Illuminate\Support\Facades\Route;
+
+Route::prefix('b2b')
+    ->name('b2b.')
+    ->group(function (): void {
+
+        Route::view(
+            '/foundation-check',
+            'foundation.check',
+            ['portal' => 'B2B']
+        )->name('foundation.check');
+
+        Route::middleware('guest')->group(function (): void {
+
+            Route::get(
+                '/reset-password/{token}',
+                [PasswordSetupController::class, 'show']
+            )->name('password.reset');
+
+            Route::post(
+                '/reset-password',
+                [PasswordSetupController::class, 'update']
+            )
+                ->middleware('throttle:5,1')
+                ->name('password.update');
+        });
+    });

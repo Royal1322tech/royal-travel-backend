@@ -1,0 +1,38 @@
+name: royal-staging-backend
+
+services:
+  php:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    restart: unless-stopped
+    working_dir: /var/www/html
+    env_file:
+      - /opt/royal-travel/staging/.env
+    networks:
+      - internal
+    volumes:
+      - /opt/royal-travel/staging/storage:/var/www/html/storage
+
+  nginx:
+    image: ${NGINX_IMAGE:?NGINX_IMAGE is required}
+    restart: unless-stopped
+    depends_on:
+      php:
+        condition: service_started
+    networks:
+      - internal
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=royal-proxy"
+      - "traefik.http.routers.royal-staging-api.rule=Host(`staging-api.royalis.tech`)"
+      - "traefik.http.routers.royal-staging-api.entrypoints=websecure"
+      - "traefik.http.routers.royal-staging-api.tls=true"
+      - "traefik.http.services.royal-staging-api.loadbalancer.server.port=80"
+
+networks:
+  internal:
+    external: true
+    name: royal-staging-internal
+  proxy:
+    external: true
+    name: royal-proxy
