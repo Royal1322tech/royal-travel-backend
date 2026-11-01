@@ -3,6 +3,7 @@
 
 use App\Http\Controllers\B2B\Auth\PasswordSetupController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\B2B\HotelSearchController;
 
 Route::prefix('b2b')
     ->name('b2b.')
@@ -29,3 +30,16 @@ Route::prefix('b2b')
                 ->name('password.update');
         });
     });
+
+
+
+
+
+
+
+    Route::middleware('auth')->group(function (): void {
+    Route::get('/hotels', [
+        HotelSearchController::class,
+        'index',
+    ])->name('hotels.index');
+});

@@ -3,7 +3,7 @@
 @section('title', 'Suppliers Management')
 
 @section('styles')
-    @vite('resources/css/suppliers/index.css')
+@vite('resources/css/suppliers/index.css')
 @endsection
 
 @section('content')
@@ -47,26 +47,19 @@
             </div>
         </div>
 
-        <form method="GET"
-              action="{{ route('admin.suppliers.index') }}"
-              class="supplier-filters">
+        <form method="GET" action="{{ route('admin.suppliers.index') }}" class="supplier-filters">
 
-            <input
-                type="search"
-                name="search"
-                value="{{ $search }}"
-                placeholder="Search supplier, code or adapter..."
-            >
+            <input type="search" name="search" value="{{ $search }}" placeholder="Search supplier, code or adapter...">
 
             <select name="status">
                 <option value="">All statuses</option>
-                <option value="pending" @selected($status === 'pending')>
+                <option value="pending" @selected($status==='pending' )>
                     Pending
                 </option>
-                <option value="active" @selected($status === 'active')>
+                <option value="active" @selected($status==='active' )>
                     Active
                 </option>
-                <option value="inactive" @selected($status === 'inactive')>
+                <option value="inactive" @selected($status==='inactive' )>
                     Inactive
                 </option>
             </select>
@@ -92,36 +85,38 @@
 
                 <tbody>
                     @forelse ($suppliers as $supplier)
-                        <tr>
-                            <td>
-                                <div class="supplier-name-cell">
-                                    <span class="supplier-avatar">
-                                        {{ strtoupper(substr($supplier->name, 0, 1)) }}
-                                    </span>
-                                    <strong>{{ $supplier->name }}</strong>
-                                </div>
-                            </td>
-
-                            <td>{{ $supplier->code }}</td>
-
-                            <td>{{ $supplier->adapter_code ?? '—' }}</td>
-
-                            <td>
-                                <span class="supplier-status supplier-status--{{ in_array($supplier->status, ['pending', 'active', 'inactive'], true) ? $supplier->status : 'other' }}">
-                                    {{ ucfirst($supplier->status) }}
+                    <tr>
+                        <td>
+                            <div class="supplier-name-cell">
+                                <span class="supplier-avatar">
+                                    {{ strtoupper(substr($supplier->name, 0, 1)) }}
                                 </span>
-                            </td>
+                                <a href="{{ route('admin.suppliers.show', $supplier->id) }}" class="font-bold text-[#02143C] hover:underline">
+                                    {{ $supplier->name }}
+                                </a>
+                            </div>
+                        </td>
 
-                            <td>
-                                {{ \Illuminate\Support\Carbon::parse($supplier->created_at)->format('d M Y') }}
-                            </td>
-                        </tr>
+                        <td>{{ $supplier->code }}</td>
+
+                        <td>{{ $supplier->adapter_code ?? '—' }}</td>
+
+                        <td>
+                            <span class="supplier-status supplier-status--{{ in_array($supplier->status, ['pending', 'active', 'inactive'], true) ? $supplier->status : 'other' }}">
+                                {{ ucfirst($supplier->status) }}
+                            </span>
+                        </td>
+
+                        <td>
+                            {{ \Illuminate\Support\Carbon::parse($supplier->created_at)->format('d M Y') }}
+                        </td>
+                    </tr>
                     @empty
-                        <tr>
-                            <td colspan="5" class="supplier-empty">
-                                No suppliers found.
-                            </td>
-                        </tr>
+                    <tr>
+                        <td colspan="5" class="supplier-empty">
+                            No suppliers found.
+                        </td>
+                    </tr>
                     @endforelse
                 </tbody>
             </table>

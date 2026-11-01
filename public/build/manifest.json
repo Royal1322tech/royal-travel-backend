@@ -1,11 +1,20 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-Ci1dZagP.css",
+    "file": "assets/app-DMpsZ40m.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
     "names": [
       "app.css"
+    ]
+  },
+  "resources/css/suppliers/index.css": {
+    "file": "assets/index-CQDNMn64.css",
+    "src": "resources/css/suppliers/index.css",
+    "isEntry": true,
+    "name": "index",
+    "names": [
+      "index.css"
     ]
   },
   "resources/js/app.js": {

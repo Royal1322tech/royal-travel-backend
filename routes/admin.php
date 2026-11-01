@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\BookingController;
 use App\Http\Controllers\Admin\DashboardController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\SupplierController;
+use App\Http\Controllers\Admin\HotelSearchController;
 
 Route::prefix('admin')
     ->name('admin.')
@@ -39,6 +40,24 @@ Route::prefix('admin')
 ])
     ->middleware('admin.permission:suppliers.view')
     ->name('suppliers.index');
+
+
+    Route::get('/suppliers/{supplier}', [
+    SupplierController::class,
+    'show',
+])
+    ->middleware('admin.permission:suppliers.view')
+    ->name('suppliers.show');
+
+Route::post('/suppliers/{supplier}/test-connection', [
+    SupplierController::class,
+    'testConnection',
+])
+    ->middleware([
+        'admin.permission:suppliers.manage',
+        'throttle:3,1',
+    ])
+    ->name('suppliers.test-connection');
 
             Route::get('/companies', [
                 AdminCompanyController::class, 'index'
@@ -93,8 +112,34 @@ Route::prefix('admin')
 ])
 
 
+
+
     ->middleware('admin.permission:companies.manage')
-    ->name('companies.approve');     
+    ->name('companies.approve');   
+    
+    Route::get('/hotels', [
+    HotelSearchController::class,
+    'index',
+])
+    ->middleware('admin.permission:hotels.view')
+    ->name('hotels.index');
+
+    Route::get('/ratehawk-ssl-diagnostic', function () {
+    abort_unless(app()->environment('local'), 404);
+
+    $caPath = 'C:/certificates/cacert.pem';
+
+    return response()->json([
+        'php_version' => PHP_VERSION,
+        'php_ini' => php_ini_loaded_file(),
+        'curl_cainfo' => ini_get('curl.cainfo'),
+        'openssl_cafile' => ini_get('openssl.cafile'),
+        'ca_file_exists' => is_file($caPath),
+        'ca_file_readable' => is_readable($caPath),
+    ]);
+})
+    ->middleware('admin.permission:suppliers.manage')
+    ->name('ratehawk.ssl-diagnostic');
 
         });
     });
