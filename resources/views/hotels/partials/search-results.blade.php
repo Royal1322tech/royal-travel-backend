@@ -5,6 +5,16 @@
     $searchAction = $searchAction ?? '#';
     $searchError = $searchError ?? null;
     $total = $total ?? count($hotels);
+    $filteredTotal = $filteredTotal ?? count($hotels);
+    $selectedBoards = (array) request('board', []);
+    $selectedPackage = request('package_type', 'all');
+    $selectedStars = (array) request('stars', []);
+    $selectedAmenities = (array) request('amenities', []);
+    $selectedSort = request('sort', 'recommended');
+    $contentUnavailable = $contentUnavailable ?? 0;
+    $contentChecked = $contentChecked ?? 0;
+    $filterBaseParams = request()->only(['search', 'destination', 'occupancy', 'checkin', 'checkout', 'residency']);
+    $resetFilterUrl = url()->current() . '?' . http_build_query($filterBaseParams);
 
     $isAdminHotelSearch = request()->routeIs('admin.hotels.index');
 
@@ -268,40 +278,36 @@
                 </h2>
 
                 <span class="text-xs text-slate-400">
-                    Coming soon
+                    Content, Board & Packaging
                 </span>
             </div>
 
-            <hr class="border-slate-100">
-
-            {{-- Hotel Name --}}
-            <div>
-                <h3 class="mb-3 text-sm font-bold text-[#02143C]">
-                    Hotel Name
-                </h3>
-
-                <input
-                    type="text"
-                    name="hotel_name"
-                    placeholder="Search hotel name"
-                    disabled
-                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400"
-                >
-            </div>
+            @if ($isAdminHotelSearch && $searchPerformed)
+                <form id="hotel-filters-form" method="GET" action="{{ $searchAction }}" class="space-y-5">
+                    @foreach ($filterBaseParams as $paramName => $paramValue)
+                        <input type="hidden" name="{{ $paramName }}" value="{{ $paramValue }}">
+                    @endforeach
+            @endif
 
             <hr class="border-slate-100">
 
-            {{-- Area --}}
+            {{-- Hotel Name and Area: supplier content, all candidates checked when selected --}}
             <div>
-                <h3 class="mb-3 text-sm font-bold text-[#02143C]">
-                    Area / Location
-                </h3>
-
-                <p class="text-xs text-slate-400">
-                    Available after hotel content integration.
-                </p>
+                <h3 class="mb-3 text-sm font-bold text-[#02143C]">Hotel Name</h3>
+                <input type="text" name="hotel_name" value="{{ request('hotel_name', '') }}"
+                    placeholder="Search hotel name" maxlength="120"
+                    @disabled(! $isAdminHotelSearch || ! $searchPerformed)
+                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
             </div>
-
+            <hr class="border-slate-100">
+            <div>
+                <h3 class="mb-3 text-sm font-bold text-[#02143C]">Area / Location</h3>
+                <input type="text" name="area" value="{{ request('area', '') }}"
+                    placeholder="e.g. Downtown" maxlength="120"
+                    @disabled(! $isAdminHotelSearch || ! $searchPerformed)
+                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                <p class="mt-2 text-xs text-slate-400">Matches supplier hotel address.</p>
+            </div>
             <hr class="border-slate-100">
 
             {{-- Top Product --}}
@@ -318,25 +324,24 @@
 
             <hr class="border-slate-100">
 
-            {{-- Board --}}
+            {{-- Board: filter all supplier rates, not only displayed room previews --}}
             <div>
-                <h3 class="mb-3 text-sm font-bold text-[#02143C]">
-                    Board
-                </h3>
-
+                <h3 class="mb-3 text-sm font-bold text-[#02143C]">Board</h3>
                 <div class="space-y-3">
                     @foreach ([
-                        'Room Only',
-                        'Bed & Breakfast',
-                        'Half Board',
-                        'Full Board',
-                        'All Inclusive',
-                        'Ultra All Inclusive',
-                    ] as $board)
-
-                        <label class="flex items-center gap-3 text-sm text-slate-400">
-                            <input type="checkbox" disabled>
-                            {{ $board }}
+                        'nomeal' => 'Room Only',
+                        'breakfast' => 'Bed & Breakfast',
+                        'half-board' => 'Half Board',
+                        'full-board' => 'Full Board',
+                        'all-inclusive' => 'All Inclusive',
+                        'ultra-all-inclusive' => 'Ultra All Inclusive',
+                    ] as $boardCode => $boardLabel)
+                        <label class="flex items-center gap-3 text-sm text-slate-600">
+                            <input type="checkbox" name="board[]" value="{{ $boardCode }}"
+                                @checked(in_array($boardCode, $selectedBoards, true))
+                                @disabled(! $isAdminHotelSearch || ! $searchPerformed)
+                                class="rounded border-slate-300 text-[#02143C]">
+                            {{ $boardLabel }}
                         </label>
                     @endforeach
                 </div>
@@ -344,21 +349,20 @@
 
             <hr class="border-slate-100">
 
-            {{-- Category --}}
+            {{-- Hotel star classification (not guest review score) --}}
             <div>
-                <h3 class="mb-3 text-sm font-bold text-[#02143C]">
-                    Star Category
-                </h3>
-
+                <h3 class="mb-3 text-sm font-bold text-[#02143C]">Star Category</h3>
                 <div class="flex flex-wrap gap-2">
                     @foreach ([1, 2, 3, 4, 5] as $star)
-                        <span class="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-400">
+                        <label class="flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-[#02143C]">
+                            <input type="checkbox" name="stars[]" value="{{ $star }}"
+                                @checked(in_array((string) $star, array_map('strval', $selectedStars), true))
+                                @disabled(! $isAdminHotelSearch || ! $searchPerformed)>
                             {{ $star }} ★
-                        </span>
+                        </label>
                     @endforeach
                 </div>
             </div>
-
             <hr class="border-slate-100">
 
             {{-- Customer Review --}}
@@ -406,30 +410,29 @@
 
             <hr class="border-slate-100">
 
-            {{-- Amenities --}}
+            {{-- Hotel amenities from supplier hotel content, not room amenities --}}
             <div>
-                <h3 class="mb-3 text-sm font-bold text-[#02143C]">
-                    Amenities
-                </h3>
-
+                <h3 class="mb-3 text-sm font-bold text-[#02143C]">Amenities</h3>
                 <div class="space-y-3">
                     @foreach ([
-                        'Non-Smoking Rooms',
-                        'Room Service',
-                        'Air Conditioning',
-                        'Bathroom',
-                        'Gym',
-                        'Heating',
-                    ] as $amenity)
-
-                        <label class="flex items-center gap-3 text-sm text-slate-400">
-                            <input type="checkbox" disabled>
-                            {{ $amenity }}
+                        'non_smoking' => 'Non-Smoking Rooms',
+                        'room_service' => 'Room Service',
+                        'air_conditioning' => 'Air Conditioning',
+                        'bathroom' => 'Bathroom',
+                        'gym' => 'Gym',
+                        'heating' => 'Heating',
+                    ] as $amenityKey => $amenityLabel)
+                        <label class="flex items-center gap-3 text-sm text-slate-600">
+                            <input type="checkbox" name="amenities[]" value="{{ $amenityKey }}"
+                                @checked(in_array($amenityKey, $selectedAmenities, true))
+                                @disabled(! $isAdminHotelSearch || ! $searchPerformed)
+                                class="rounded border-slate-300 text-[#02143C]">
+                            {{ $amenityLabel }}
                         </label>
                     @endforeach
                 </div>
+                <p class="mt-2 text-xs text-slate-400">Multiple selections require all selected amenities.</p>
             </div>
-
             <hr class="border-slate-100">
 
             {{-- Price --}}
@@ -460,32 +463,45 @@
 
             {{-- Packaging --}}
             <div>
-                <h3 class="mb-3 text-sm font-bold text-[#02143C]">
-                    Product Packaging
-                </h3>
-
+                <h3 class="mb-3 text-sm font-bold text-[#02143C]">Product Packaging</h3>
                 <div class="space-y-3">
-                    @foreach ([
-                        'All',
-                        'With Package',
-                        'Without Package',
-                    ] as $package)
-
-                        <label class="flex items-center gap-3 text-sm text-slate-400">
-                            <input type="radio" disabled>
-                            {{ $package }}
+                    @foreach (['all' => 'All', 'with_package' => 'With Package', 'without_package' => 'Without Package'] as $packageValue => $packageLabel)
+                        <label class="flex items-center gap-3 text-sm text-slate-600">
+                            <input type="radio" name="package_type" value="{{ $packageValue }}"
+                                @checked($selectedPackage === $packageValue)
+                                @disabled(! $isAdminHotelSearch || ! $searchPerformed)
+                                class="border-slate-300 text-[#02143C]">
+                            {{ $packageLabel }}
                         </label>
                     @endforeach
                 </div>
             </div>
 
-            <button
-                type="button"
-                disabled
-                class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-400"
-            >
-                Reset Filters
-            </button>
+            <hr class="border-slate-100">
+            <div>
+                <label for="hotel-sort" class="mb-2 block text-sm font-bold text-[#02143C]">Sort By</label>
+                <select id="hotel-sort" name="sort"
+                    @disabled(! $isAdminHotelSearch || ! $searchPerformed)
+                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-[#02143C]">
+                    <option value="recommended" @selected($selectedSort === 'recommended')>Recommended</option>
+                    <option value="stars_desc" @selected($selectedSort === 'stars_desc')>Star Rating: High to Low</option>
+                    <option value="name_asc" @selected($selectedSort === 'name_asc')>Hotel Name: A to Z</option>
+                </select>
+            </div>
+
+            @if ($isAdminHotelSearch && $searchPerformed)
+                <button type="submit" class="w-full rounded-xl bg-[#02143C] px-4 py-3 text-sm font-semibold text-white hover:bg-[#B7731E]">
+                    Apply Filters
+                </button>
+                <a href="{{ $resetFilterUrl }}" class="block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-[#02143C]">
+                    Reset Filters
+                </a>
+                </form>
+            @else
+                <button type="button" disabled class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-400">
+                    Reset Filters
+                </button>
+            @endif
 
         </aside>
 
@@ -502,24 +518,22 @@
 
                     <p class="mt-1 text-sm text-slate-500">
                         @if ($searchPerformed)
-                            {{ $total }} hotel results
+                            {{ $filteredTotal }} of {{ $total }} hotel results
+                            @if ($contentUnavailable > 0 && (request()->filled('hotel_name') || request()->filled('area') || request()->has('stars') || request()->has('amenities') || request('sort', 'recommended') !== 'recommended'))
+                                <span class="block mt-1 text-amber-700">{{ $contentUnavailable }} hotels could not be checked against content-based filters; results may be incomplete.</span>
+                            @endif
                         @else
                             Enter your search details to find available hotels.
                         @endif
                     </p>
                 </div>
 
-                {{-- Sorting --}}
-                <select
-                    disabled
-                    class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-400"
-                >
-                    <option>Recommended</option>
-                    <option>Price: Low to High</option>
-                    <option>Price: High to Low</option>
-                    <option>Star Rating</option>
-                    <option>Hotel Name</option>
-                </select>
+                {{-- Sort via filter form so the search criteria are preserved --}}
+                @if ($isAdminHotelSearch && $searchPerformed)
+                    <div class="text-xs text-slate-500">Sort options are in the Filters panel.</div>
+                @else
+                    <span class="text-xs text-slate-400">Recommended order</span>
+                @endif
 
             </div>
 
@@ -533,6 +547,9 @@
                         ? max(0, min(5, (int) $hotel['stars']))
                         : null;
                     $hotelAmenities = array_slice($hotel['amenities'] ?? [], 0, 5);
+                    $roomPreviews = is_array($hotel['room_previews'] ?? null)
+                        ? array_slice($hotel['room_previews'], 0, 3)
+                        : [];
                 @endphp
 
                 <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
@@ -588,27 +605,54 @@
                         </div>
                     </div>
 
-                    {{-- Booking preview: no unverified supplier pricing --}}
-                    <div class="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 bg-slate-50/50 px-5 py-4">
-                        <div>
-                            <p class="text-sm font-semibold text-[#02143C]">
-                                {{ $hotel['room'] ?? 'Room details pending' }}
-                            </p>
-                            <p class="mt-1 text-xs text-slate-500">
-                                {{ $hotel['board'] ?? 'Meal plan not supplied' }}
-                            </p>
-                            <p class="mt-1 text-xs text-slate-500">
+                    {{-- Room previews: display only safe, non-price fields --}}
+                    <div class="border-t border-slate-100 bg-slate-50/50 px-5 py-4">
+                        <div class="min-w-0 flex-1 space-y-3">
+                            @if (count($roomPreviews) > 0)
+                                <p class="text-sm font-semibold text-[#02143C]">Available room options</p>
+                                @foreach ($roomPreviews as $roomPreview)
+                                    @php
+                                        $mealCode = strtolower((string) ($roomPreview['meal_name'] ?? ''));
+                                        $mealLabel = match ($mealCode) {
+                                            'nomeal' => 'Room Only',
+                                            'breakfast' => 'Breakfast Included',
+                                            'half-board' => 'Half Board',
+                                            'full-board' => 'Full Board',
+                                            'all-inclusive' => 'All Inclusive',
+                                            default => $roomPreview['meal_name'] ?: 'Meal details pending',
+                                        };
+                                    @endphp
+                                    <div class="rounded-lg border border-slate-200 bg-white px-4 py-3">
+                                        <p class="break-words text-sm font-semibold text-[#02143C]">
+                                            {{ $roomPreview['room_name'] ?: 'Room name pending' }}
+                                        </p>
+                                        <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                                            <span>{{ $mealLabel }}</span>
+                                            @if (!empty($roomPreview['bedding_type']))
+                                                <span>{{ $roomPreview['bedding_type'] }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            @else
+                                <p class="text-sm font-semibold text-[#02143C]">Room details pending</p>
+                                <p class="text-xs text-slate-500">Meal plan not supplied</p>
+                            @endif
+                            <p class="text-xs text-slate-500">
                                 Room availability and selling prices will appear after rate validation.
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            disabled
-                            title="Room selection is not connected yet"
-                            class="cursor-not-allowed rounded-xl bg-slate-200 px-6 py-3 text-sm font-semibold text-slate-500"
-                        >
-                            View Rooms
-                        </button>
+                        <div class="mt-4 flex justify-end" style="display: flex; justify-content: flex-end; margin-top: 16px;">
+                            @if ($isAdminHotelSearch && !empty($hotel['rooms_token']))
+                                <a href="{{ route('admin.hotels.rooms', ['token' => $hotel['rooms_token']]) }}"
+                                   class="rounded-xl bg-[#02143C] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#B7731E]">
+                                    View Rooms
+                                </a>
+                            @else
+                                <button type="button" disabled title="No room details available"
+                                        class="cursor-not-allowed rounded-xl bg-slate-200 px-6 py-3 text-sm font-semibold text-slate-500">View Rooms</button>
+                            @endif
+                        </div>
                     </div>
                 </article>
 
@@ -633,7 +677,7 @@
                         </h3>
 
                         <p class="mt-2 text-sm text-slate-500">
-                            No hotels are available for your search criteria.
+                            No hotels match the selected filters or search criteria.
                             Try changing the destination or travel dates.
                         </p>
                     @else

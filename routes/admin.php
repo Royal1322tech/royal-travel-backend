@@ -142,4 +142,11 @@ Route::post('/suppliers/{supplier}/test-connection', [
     ->name('ratehawk.ssl-diagnostic');
 
         });
+
+
+
+        Route::get(
+    '/hotels/rooms/{token}',
+    [\App\Http\Controllers\Admin\HotelRoomsController::class, 'show']
+)->name('hotels.rooms');
     });
