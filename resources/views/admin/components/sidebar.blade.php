@@ -80,7 +80,7 @@
                     'path' => 'credit',
                 ],
                 [
-                    'label' => 'Pricing & FX',
+                    'label' => 'Pricing & Commissions',
                     'icon' => '◇',
                     'path' => 'pricing',
                 ],
@@ -121,6 +121,7 @@
         'companies' => 'admin.companies.index',
         'suppliers' => 'admin.suppliers.index',
         'hotels' => 'admin.hotels.index',
+        'pricing' => 'admin.pricing.index',
     ];
 @endphp
 
