@@ -5,6 +5,7 @@ namespace App\Services\Hotels;
 use App\Services\Suppliers\RateHawk\RateHawkClient;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
+use RuntimeException;
 
 class RateHawkSearchService
 {
@@ -14,11 +15,11 @@ class RateHawkSearchService
     }
 
     /**
-     * Search hotels near geographic coordinates.
+     * Supplier-facing geographic hotel search.
      *
-     * This is the supplier-facing search service.
-     * Channel authorization and selling prices will be
-     * handled by the Royal Travel application layer.
+     * Channel authorization, company-specific pricing,
+     * and public result formatting belong to the
+     * application layer, not this supplier service.
      */
     public function searchByGeo(array $params): array
     {
@@ -114,7 +115,7 @@ class RateHawkSearchService
         );
 
         if (($response['status'] ?? null) !== 'ok') {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'RateHawk search was not successful.'
             );
         }
@@ -122,7 +123,7 @@ class RateHawkSearchService
         $hotels = $response['data']['hotels'] ?? [];
 
         if (! is_array($hotels)) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'Unexpected RateHawk hotels response.'
             );
         }
