@@ -15,42 +15,51 @@
             Main Menu
         </p>
 
-        @php
-            $menuItems = [
-                [
-                    'label' => 'Dashboard',
-                    'icon' => '▦',
-                    'url' => url('/ui-preview/b2b/dashboard'),
-                    'active' => request()->is('ui-preview/b2b/dashboard'),
-                ],
-                [
-                    'label' => 'Bookings',
-                    'icon' => '▤',
-                    'url' => url('/ui-preview/b2b/all-bookings'),
-                    'active' => request()->is('ui-preview/b2b/all-bookings'),
-                ],
-                [
-                    'label' => 'Hotel Offline Requests',
-                    'icon' => '▧',
-                    'url' => url('/ui-preview/b2b/bookings'),
-                    'active' => request()->is('ui-preview/b2b/bookings')
-                        || request()->is('ui-preview/b2b/bookings/*'),
-                ],
-                [
-                    'label' => 'Hotels',
-                    'icon' => '⌂',
-                    'url' => url('/ui-preview/b2b/hotels'),
-                    'active' => request()->is('ui-preview/b2b/hotels')
-                        || request()->is('ui-preview/b2b/hotels/*'),
-                ],
-                [
-                    'label' => 'Group Requests',
-                    'icon' => '♧',
-                    'url' => null,
-                    'active' => false,
-                ],
-            ];
-        @endphp
+@php
+    $menuItems = [
+        [
+            'label' => 'Dashboard',
+            'icon' => '▦',
+            'url' => url('/ui-preview/b2b/dashboard'),
+            'active' => request()->is('ui-preview/b2b/dashboard'),
+        ],
+        [
+            'label' => 'Bookings',
+            'icon' => '▤',
+            'url' => url('/ui-preview/b2b/all-bookings'),
+            'active' => request()->is('ui-preview/b2b/all-bookings'),
+        ],
+        [
+            'label' => 'Hotel Offline Requests',
+            'icon' => '▧',
+            'url' => url('/ui-preview/b2b/bookings'),
+            'active' => request()->is('ui-preview/b2b/bookings')
+                || request()->is('ui-preview/b2b/bookings/*'),
+        ],
+        [
+            'label' => 'Hotels',
+            'icon' => '⌂',
+            'url' => url('/ui-preview/b2b/hotels'),
+            'active' => request()->is('ui-preview/b2b/hotels')
+                || request()->is('ui-preview/b2b/hotels/*'),
+        ],
+        [
+            'label' => 'My Pricing & Markup',
+            'icon' => '％',
+            'url' => Route::has('b2b.pricing.index')
+                ? route('b2b.pricing.index')
+                : null,
+            'active' => request()->routeIs('b2b.pricing.*'),
+        ],
+        [
+            'label' => 'Group Requests',
+            'icon' => '♧',
+            'url' => null,
+            'active' => false,
+        ],
+    ];
+@endphp
+
 
         @foreach ($menuItems as $item)
             @if ($item['url'])

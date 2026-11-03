@@ -24,6 +24,10 @@ class EnsureAdminPermission
             abort(401, 'Unauthenticated.');
         }
 
+        if ($request->session()->get('auth_portal') !== 'admin') {
+            abort(403, 'Admin dashboard authentication required.');
+        }
+
         if (! $this->permissions->adminCan($user, $permission)) {
             abort(403, 'You do not have admin permission.');
         }
