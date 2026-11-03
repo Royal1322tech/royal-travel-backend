@@ -49,7 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             if ($request->is('b2b/*')) {
-                abort(401, 'B2B login is not yet configured.');
+                return route('b2b.login');
             }
 
             return route('login');

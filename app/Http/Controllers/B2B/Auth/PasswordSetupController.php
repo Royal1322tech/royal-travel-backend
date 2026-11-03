@@ -73,7 +73,7 @@ class PasswordSetupController extends Controller
                 'email' => $email,
                 'password' => $validated['password'],
                 'password_confirmation' =>
-                    $validated['password_confirmation'],
+                    $request->input('password_confirmation'),
                 'token' => $validated['token'],
             ],
             function ($user, string $password) use ($email): void {
