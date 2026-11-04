@@ -16,6 +16,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'companies.manage',
             'users.view',
             'users.manage',
+            'hotels.view',
             'bookings.view',
             'bookings.create',
             'bookings.cancel',
@@ -37,6 +38,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     'dashboard.view',
                     'users.view',
                     'users.manage',
+                    'hotels.view',
                     'bookings.view',
                     'bookings.create',
                     'bookings.cancel',
@@ -48,6 +50,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'portal' => 'b2b',
                 'permissions' => [
                     'dashboard.view',
+                    'hotels.view',
                     'bookings.view',
                     'bookings.create',
                 ],

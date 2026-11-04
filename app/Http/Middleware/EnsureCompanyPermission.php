@@ -24,6 +24,11 @@ class EnsureCompanyPermission
             abort(401, 'Unauthenticated.');
         }
 
+        // B2B access requires a dashboard-authenticated session.
+        if ($request->session()->get('auth_portal') !== 'b2b') {
+            abort(403, 'B2B dashboard authentication required.');
+        }
+
         // Company context must come from a trusted, validated session.
         $companyId = $request->session()->get('active_company_id');
 

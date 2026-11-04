@@ -53,6 +53,13 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
+        // Bind this authenticated session exclusively to the Admin portal.
+        $request->session()->forget([
+            'active_company_id',
+            'b2b_pending_challenge',
+        ]);
+        $request->session()->put('auth_portal', 'admin');
+
         return redirect()->route('admin.dashboard');
     }
 

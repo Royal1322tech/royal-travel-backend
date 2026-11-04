@@ -1,4 +1,3 @@
-
 <?php
 use Illuminate\Support\Facades\Route;
 
@@ -33,6 +32,7 @@ Route::get('/bookings-test', function () {
     });
 });
 
+if (app()->environment('local')) {
 // Temporary B2B Dashboard UI preview — dummy data only.
 Route::view('/ui-preview/b2b/dashboard', 'b2b.dashboard.index');
 
@@ -56,3 +56,4 @@ Route::view('/ui-preview/b2b/all-bookings', 'b2b.bookings.all');
 
 // Temporary Hotels UI preview — dummy data only.
 Route::view('/ui-preview/b2b/hotels', 'b2b.hotels.index');
+}

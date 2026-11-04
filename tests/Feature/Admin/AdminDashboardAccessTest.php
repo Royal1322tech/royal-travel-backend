@@ -14,12 +14,12 @@ class AdminDashboardAccessTest extends TestCase
 
     public function test_guest_cannot_access_admin_dashboard(): void
     {
-        $this->get('/admin/dashboard')->assertStatus(401);
+        $this->get('/admin/dashboard')->assertRedirect(route('admin.login'));
     }
 
     public function test_user_without_admin_permission_is_forbidden(): void
     {
-        $this->actingAs(User::factory()->create())
+        $this->withSession(['auth_portal' => 'admin'])->actingAs(User::factory()->create())
             ->get('/admin/dashboard')
             ->assertForbidden();
     }
@@ -29,7 +29,7 @@ class AdminDashboardAccessTest extends TestCase
         $user = User::factory()->create();
         $this->assignRoleWithPermission($user, 'b2b', 'dashboard.view');
 
-        $this->actingAs($user)
+        $this->withSession(['auth_portal' => 'admin'])->actingAs($user)
             ->get('/admin/dashboard')
             ->assertForbidden();
     }
@@ -39,7 +39,7 @@ class AdminDashboardAccessTest extends TestCase
         $user = User::factory()->create();
         $this->assignRoleWithPermission($user, 'admin', 'bookings.view');
 
-        $this->actingAs($user)
+        $this->withSession(['auth_portal' => 'admin'])->actingAs($user)
             ->get('/admin/dashboard')
             ->assertForbidden();
     }
@@ -51,9 +51,21 @@ class AdminDashboardAccessTest extends TestCase
         $user = User::factory()->create();
         $this->assignRoleWithPermission($user, 'admin', 'dashboard.view');
 
-        $this->actingAs($user)
+        $this->withSession(['auth_portal' => 'admin'])->actingAs($user)
             ->get('/admin/dashboard')
             ->assertOk();
+    }
+
+    public function test_b2b_session_cannot_access_admin_dashboard(): void
+    {
+        $user = User::factory()->create();
+
+        $this->assignRoleWithPermission($user, 'admin', 'dashboard.view');
+
+        $this->actingAs($user)
+            ->withSession(['auth_portal' => 'b2b'])
+            ->get('/admin/dashboard')
+            ->assertForbidden();
     }
 
     private function assignRoleWithPermission(

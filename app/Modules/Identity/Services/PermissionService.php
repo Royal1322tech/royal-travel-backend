@@ -12,11 +12,13 @@ class PermissionService
         string $permission,
         string $companyId
     ): bool {
-        $membership = DB::table('rt_company_memberships')
-            ->where('user_id', $user->id)
-            ->where('company_id', $companyId)
-            ->where('status', 'active')
-            ->whereNotNull('approved_at')
+        $membership = DB::table('rt_company_memberships as cm')
+            ->join('rt_companies as c', 'c.id', '=', 'cm.company_id')
+            ->where('cm.user_id', $user->id)
+            ->where('cm.company_id', $companyId)
+            ->where('cm.status', 'active')
+            ->whereNotNull('cm.approved_at')
+            ->where('c.status', 'approved')
             ->exists();
 
         if (! $membership) {

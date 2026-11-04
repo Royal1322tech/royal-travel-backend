@@ -19,7 +19,10 @@ class RoyalSchemaTest extends TestCase
               AND table_name LIKE 'rt_%'
         ");
 
-        $this->assertEquals(54, (int) $result->total);
+        $this->assertEquals(55, (int) $result->total);
+        $this->assertTrue(
+            \Illuminate\Support\Facades\Schema::hasTable('rt_company_contacts')
+        );
     }
 
     public function test_core_booking_tables_exist(): void

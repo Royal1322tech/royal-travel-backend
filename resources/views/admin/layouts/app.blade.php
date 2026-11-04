@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="{{ app()->getLocale() }}"
       dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
@@ -13,7 +14,12 @@
         @yield('title', 'Dashboard') | Royal Travel Admin
     </title>
 
+    {{-- Global CSS and JavaScript --}}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    {{-- Page-specific CSS --}}
+    @yield('styles')
+
 </head>
 
 <body class="min-h-screen bg-[#F7F8FA] text-slate-800 antialiased">
