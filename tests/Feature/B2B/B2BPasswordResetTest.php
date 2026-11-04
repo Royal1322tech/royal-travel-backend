@@ -16,6 +16,13 @@ class B2BPasswordResetTest extends TestCase
 
     private const NEW_PASSWORD = 'NewSecurePassword123!';
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+    }
+
     private function createB2BUser(bool $approved = true): User
     {
         $user = User::factory()->create([
@@ -111,17 +118,15 @@ class B2BPasswordResetTest extends TestCase
         $user = $this->createB2BUser();
         $token = Password::broker('b2b_users')->createToken($user);
 
-        $this->travel(31)->minutes();
+        DB::table('b2b_password_reset_tokens')
+            ->where('email', $user->email)
+            ->update(['created_at' => now()->subMinutes(31)]);
 
-        try {
-            $this->resetPassword($user, $token)
-                ->assertSessionHasErrors('email');
+        $this->resetPassword($user, $token)
+            ->assertSessionHasErrors('email');
 
-            $this->assertTrue(
-                Hash::check('OldSecurePassword123!', $user->fresh()->password)
-            );
-        } finally {
-            $this->travelBack();
-        }
+        $this->assertTrue(
+            Hash::check('OldSecurePassword123!', $user->fresh()->password)
+        );
     }
 }
