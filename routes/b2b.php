@@ -5,7 +5,17 @@ use App\Http\Controllers\B2B\Auth\PasswordSetupController;
 use App\Http\Controllers\B2B\Auth\DashboardLoginController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\B2B\HotelSearchController;
+use App\Http\Controllers\B2B\PricingController;
 
+// Add this group to routes/b2b.php (outside existing route groups):
+Route::prefix('b2b')
+    ->name('b2b.')
+    ->middleware(['auth', 'company.permission:pricing.company.manage'])
+    ->group(function (): void {
+        Route::get('/pricing', [PricingController::class, 'index'])->name('pricing.index');
+        Route::post('/pricing', [PricingController::class, 'save'])
+            ->middleware('throttle:10,1')->name('pricing.save');
+    });
 Route::prefix('b2b')
     ->name('b2b.')
     ->group(function (): void {

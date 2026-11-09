@@ -7,11 +7,14 @@ return [
     | Third Party Services
     |--------------------------------------------------------------------------
     |
-    | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
+    | Configuration for external services and API integrations.
     |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Email Services
+    |--------------------------------------------------------------------------
     */
 
     'postmark' => [
@@ -35,12 +38,51 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | RateHawk API Integration
+    |--------------------------------------------------------------------------
+    |
+    | Hotel supplier API configuration.
+    | Supports sandbox and production environments.
+    |
+    */
+
     'ratehawk' => [
-    'environment' => env('RATEHAWK_ENV', 'sandbox'),
-    'sandbox_url' => 'https://api-sandbox.ratehawk.com',
-    'production_url' => 'https://api.ratehawk.com',
-    'key_id' => env('RATEHAWK_KEY_ID'),
-    'api_key' => env('RATEHAWK_API_KEY'),
-],
+        'environment' => env('RATEHAWK_ENV', 'sandbox'),
+
+        'sandbox_url' => 'https://api-sandbox.ratehawk.com',
+
+        'production_url' => 'https://api.ratehawk.com',
+
+        'key_id' => env('RATEHAWK_KEY_ID'),
+
+        'api_key' => env('RATEHAWK_API_KEY'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Open Exchange Rates API
+    |--------------------------------------------------------------------------
+    |
+    | Exchange rate provider for USD, EGP and SAR.
+    |
+    | Base currency: USD
+    | Provider: Open Exchange Rates
+    |
+    | The API key is stored securely in the .env file.
+    |
+    */
+
+    'open_exchange_rates' => [
+        'app_id' => env('OPENEXCHANGERATES_APP_ID'),
+
+        'url' => env(
+            'OPENEXCHANGERATES_URL',
+            'https://openexchangerates.org/api/latest.json'
+        ),
+
+        'timeout' => (int) env('OPENEXCHANGERATES_TIMEOUT', 10),
+    ],
 
 ];

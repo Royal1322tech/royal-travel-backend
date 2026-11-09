@@ -91,3 +91,41 @@ Route::get('/foundation-check', function (\Illuminate\Http\Request $request) {
         'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
     ]);
 })->name('api.v1.foundation-check');
+
+
+
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Hotel Search API - B2C
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/b2c/hotels/search', [
+    \App\Http\Controllers\Api\V1\B2C\Hotels\HotelSearchController::class,
+    '__invoke',
+])
+    ->middleware('throttle:10,1')
+    ->name('api.v1.b2c.hotels.search');
+
+
+/*
+|--------------------------------------------------------------------------
+| Hotel Search API - B2B
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/b2b/hotels/search', [
+    \App\Http\Controllers\Api\V1\B2B\Hotels\HotelSearchController::class,
+    '__invoke',
+])
+    ->middleware([
+        'auth:sanctum',
+        'b2b.api.permission:hotels.view',
+        'throttle:20,1',
+    ])
+    ->name('api.v1.b2b.hotels.search');
+
