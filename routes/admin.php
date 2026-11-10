@@ -198,6 +198,14 @@ Route::prefix('admin')
                 ->middleware('admin.permission:hotels.view')
                 ->name('hotels.rooms');
 
+
+                Route::post('/hotels/rooms/{token}/select', [
+    HotelRoomsController::class,
+    'select',
+])
+    ->middleware('admin.permission:hotels.view')
+    ->name('hotels.rooms.select');
+
             /*
             |--------------------------------------------------------------------------
             | Pricing & Commissions

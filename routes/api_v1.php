@@ -38,7 +38,7 @@ Route::prefix('b2b/auth')
             CompanyRegistrationController::class,
             'register',
         ])
-            ->middleware('throttle:3,60')
+            ->middleware('throttle:10,60')
             ->name('register');
 
         Route::post('/login', [

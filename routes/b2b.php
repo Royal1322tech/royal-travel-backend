@@ -58,7 +58,7 @@ Route::prefix('b2b')
                 '/reset-password',
                 [PasswordSetupController::class, 'update']
             )
-                ->middleware('throttle:5,1')
+                ->middleware('throttle:10,1')
                 ->name('password.update');
         });
     });

@@ -146,4 +146,31 @@ class RateHawkRateNormalizerTest extends TestCase
         $this->assertStringNotContainsString('100.00', $json);
         $this->assertStringNotContainsString('15.00', $json);
     }
+
+
+
+public function test_hotelpage_book_hash_is_preserved_internally(): void
+{
+    $normalized = $this->normalizer->normalize([
+        'room_name' => 'Deluxe Room',
+        'book_hash' => 'h-private-hotelpage-hash',
+        'match_hash' => 'm-private-match-hash',
+    ]);
+
+    $this->assertSame(
+        'h-private-hotelpage-hash',
+        $normalized['supplier']['book_hash']
+    );
+
+    $preview = $this->normalizer->publicPreview($normalized);
+
+    $this->assertArrayNotHasKey('supplier', $preview);
+    $this->assertArrayNotHasKey('book_hash', $preview);
+
+    $this->assertStringNotContainsString(
+        'h-private-hotelpage-hash',
+        json_encode($preview)
+    );
+}
+
 }

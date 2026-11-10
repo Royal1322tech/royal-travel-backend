@@ -76,6 +76,7 @@ final class RateHawkRateNormalizer
                 'any_residency' => $rate['any_residency'] ?? null,
             ],
             'supplier' => [
+                'book_hash' => $rate['book_hash'] ?? null,
                 'match_hash' => $rate['match_hash'] ?? null,
                 'search_hash' => $rate['search_hash'] ?? null,
                 'daily_prices' => is_array($rate['daily_prices'] ?? null)
