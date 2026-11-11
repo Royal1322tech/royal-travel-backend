@@ -3,22 +3,12 @@
 @section('content')
 @php
     $mealLabels = [
-        'nomeal' => 'Room Only',
-        'no_meal' => 'Room Only',
-        'room only' => 'Room Only',
-        'breakfast' => 'Breakfast Included',
-        'breakfast included' => 'Breakfast Included',
-        'half-board' => 'Half Board',
-        'half_board' => 'Half Board',
-        'halfboard' => 'Half Board',
-        'full-board' => 'Full Board',
-        'full_board' => 'Full Board',
-        'fullboard' => 'Full Board',
-        'all-inclusive' => 'All Inclusive',
-        'all_inclusive' => 'All Inclusive',
-        'allinclusive' => 'All Inclusive',
-        'ultra-all-inclusive' => 'Ultra All Inclusive',
-        'ultra_all_inclusive' => 'Ultra All Inclusive',
+        'nomeal' => 'Room Only', 'no_meal' => 'Room Only', 'room only' => 'Room Only',
+        'breakfast' => 'Breakfast Included', 'breakfast included' => 'Breakfast Included',
+        'half-board' => 'Half Board', 'half_board' => 'Half Board', 'halfboard' => 'Half Board',
+        'full-board' => 'Full Board', 'full_board' => 'Full Board', 'fullboard' => 'Full Board',
+        'all-inclusive' => 'All Inclusive', 'all_inclusive' => 'All Inclusive', 'allinclusive' => 'All Inclusive',
+        'ultra-all-inclusive' => 'Ultra All Inclusive', 'ultra_all_inclusive' => 'Ultra All Inclusive',
     ];
 @endphp
 <div class="mx-auto max-w-7xl space-y-6 px-4 py-6">
@@ -36,7 +26,7 @@
             <span><strong class="text-[#02143C]">Available rate options:</strong> {{ count($rooms) }}</span>
         </div>
         <p class="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
-            These are search-time rate options, not confirmed offers. Prices, cancellation terms, payment conditions and booking will be available only after pricing integration and RateHawk rate recheck.
+            These are search-time rate options, not confirmed offers. Room recheck is available. Final prices, cancellation and payment terms must be reviewed before booking. Booking and payment remain disabled.
         </p>
     </header>
 
@@ -80,27 +70,15 @@
                         @endif
                         <p class="text-xs text-slate-400">Cancellation and payment terms: pending supplier rate validation.</p>
                     </div>
-                    
-<form
-    method="POST"
-    action="{{ route('admin.hotels.rooms.select', ['token' => $token]) }}"
->
-    @csrf
-
-    <input
-        type="hidden"
-        name="rate_index"
-        value="{{ $room['rate_index'] }}"
-    >
-
-    <button
-        type="submit"
-        class="rounded-xl bg-[#02143C] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#102B62] focus:outline-none focus:ring-2 focus:ring-[#B7731E] focus:ring-offset-2"
-    >
-        Select Room
-    </button>
-</form>
-
+                    <div class="w-full sm:w-auto">
+                        <form class="js-prebook-form" method="POST" action="{{ route('admin.hotels.rooms.prebook', ['token' => $token]) }}">
+                            @csrf
+                            <input type="hidden" name="rate_index" value="{{ $room['rate_index'] }}">
+                            <button type="submit" class="js-prebook-button rounded-xl bg-[#02143C] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#102B62] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#B7731E] focus:ring-offset-2">Select &amp; Recheck</button>
+                        </form>
+                        <div class="js-prebook-feedback mt-3 hidden max-w-xs rounded-lg border p-3 text-sm" role="status" aria-live="polite"></div>
+                        <div class="js-review-action mt-3 hidden"></div>
+                    </div>
                 </div>
             </article>
         @empty
@@ -108,4 +86,76 @@
         @endforelse
     </section>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.js-prebook-form').forEach(form => {
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+            const button = form.querySelector('.js-prebook-button');
+            const feedback = form.parentElement.querySelector('.js-prebook-feedback');
+            const reviewAction = form.parentElement.querySelector('.js-review-action');
+            reviewAction.replaceChildren();
+            reviewAction.classList.add('hidden');
+            button.disabled = true;
+            button.textContent = 'Rechecking…';
+            feedback.className = 'js-prebook-feedback mt-3 max-w-xs rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700';
+            feedback.textContent = 'Checking room availability…';
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value
+                    },
+                    body: JSON.stringify({ rate_index: Number(form.querySelector('input[name="rate_index"]').value) })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const messages = {
+                        403: 'You are not authorized to recheck this room.',
+                        409: 'This room rate is no longer valid. Search again.',
+                        410: 'Search expired. Please search again.',
+                        419: 'Session expired. Refresh the page and try again.',
+                        422: 'Invalid room selection.',
+                        503: 'Supplier recheck is unavailable. Please try again.'
+                    };
+                    throw new Error(messages[response.status] || 'Recheck failed. Please try again.');
+                }
+                if (data.status !== 'rechecked' || data.booking_enabled !== false) {
+                    throw new Error('Unexpected recheck response.');
+                }
+                feedback.className = data.price_changed
+                    ? 'js-prebook-feedback mt-3 max-w-xs rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900'
+                    : 'js-prebook-feedback mt-3 max-w-xs rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700';
+                feedback.textContent = (data.price_changed ? 'Price changed — review required. ' : 'Availability rechecked. ') + 'No reservation or payment has been made.';
+
+                if (typeof data.review_url === 'string' && data.review_url.trim() !== '') {
+                    const reviewUrl = new URL(data.review_url, window.location.origin);
+                    if (reviewUrl.origin !== window.location.origin || !reviewUrl.pathname.startsWith('/admin/hotels/rooms/review/')) {
+                        throw new Error('Invalid booking review link.');
+                    }
+                    const link = document.createElement('a');
+                    link.href = reviewUrl.href;
+                    link.textContent = 'Continue to Booking Review';
+                    link.className = 'inline-flex rounded-xl bg-[#02143C] px-5 py-3 text-sm font-semibold text-white hover:bg-[#102B62] focus:outline-none focus:ring-2 focus:ring-[#B7731E]';
+                    reviewAction.appendChild(link);
+                    reviewAction.classList.remove('hidden');
+                } else {
+                    feedback.textContent += ' Booking Review link is not available yet; verify the Controller returns review_url.';
+                }
+            } catch (error) {
+                reviewAction.replaceChildren();
+                reviewAction.classList.add('hidden');
+                feedback.className = 'js-prebook-feedback mt-3 max-w-xs rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700';
+                feedback.textContent = error.message || 'Recheck failed.';
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Select & Recheck';
+            }
+        });
+    });
+});
+</script>
 @endsection
