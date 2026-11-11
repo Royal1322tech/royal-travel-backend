@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Tests\TestCase;
+use App\Services\Suppliers\RateHawk\RateHawkClient;
 
 class AdminHotelSearchHttpTest extends TestCase
 {
@@ -45,6 +46,13 @@ class AdminHotelSearchHttpTest extends TestCase
             'role_id' => $roleId,
             'company_id' => null,
         ]);
+
+        DB::table('rt_admin_access')->insert([
+    'user_id' => $user->id,
+    'is_enabled' => true,
+    'created_at' => now(),
+    'updated_at' => now(),
+]);
 
         $this->withoutVite();
         $this->withSession(['auth_portal' => 'admin'])->actingAs($user);
@@ -180,6 +188,48 @@ class AdminHotelSearchHttpTest extends TestCase
                 'amenity_groups' => [],
             ]);
 
+$this->mock(RateHawkClient::class)
+            ->shouldReceive('post')
+            ->once()
+            ->withArgs(function (string $path, array $payload): bool {
+                return $path === '/api/b2b/v3/search/hp/'
+                    && ($payload['hid'] ?? null) === 123456
+                    && ($payload['checkin'] ?? null) === $this->searchParams()['checkin']
+                    && ($payload['checkout'] ?? null) === $this->searchParams()['checkout']
+                    && ($payload['residency'] ?? null) === 'eg'
+                    && ($payload['guests'] ?? null) === [
+                        ['adults' => 2, 'children' => []],
+                    ];
+            })
+            ->andReturn([
+                'status' => 'ok',
+                'error' => null,
+                'data' => [
+                    'hotels' => [[
+                        'id' => 'secure-test-hotel',
+                        'hid' => 123456,
+                        'rates' => [[
+                            'room_name' => 'Secure Deluxe Room',
+                            'room_data_trans' => ['bedding_type' => 'King Bed'],
+                            'meal' => 'breakfast',
+                            'meal_data' => ['value' => 'Breakfast Included'],
+                            'allotment' => 2,
+                            'book_hash' => 'h-SECRET_BOOK_HASH_789',
+                            'match_hash' => 'SECRET_MATCH_HASH_123',
+                            'search_hash' => 'SECRET_SEARCH_HASH_456',
+                            'payment_options' => [
+                                'payment_types' => [[
+                                    'type' => 'now',
+                                    'amount' => '76543.21',
+                                    'currency_code' => 'USD',
+                                    'commission_info' => ['amount' => '65432.10'],
+                                ]],
+                            ],
+                        ]],
+                    ]],
+                ],
+            ]);
+
         $searchResponse = $this->get(
             route('admin.hotels.index', $this->searchParams())
         );
@@ -211,6 +261,7 @@ class AdminHotelSearchHttpTest extends TestCase
 
         $roomsResponse->assertOk()
             ->assertSee('Secure Deluxe Room')
+             ->assertDontSee('h-SECRET_BOOK_HASH_789')
             ->assertDontSee('SECRET_MATCH_HASH_123')
             ->assertDontSee('SECRET_SEARCH_HASH_456')
             ->assertDontSee('76543.21')

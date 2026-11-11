@@ -322,22 +322,50 @@ class HotelSearchController extends Controller
                 }
                 if ($roomRates === []) continue;
                 $token = Str::random(48);
-                Cache::put('admin_hotel_rooms:' . hash('sha256', $token), [
-                    'session' => hash('sha256', $request->session()->getId()),
-                    'hotel' => [
-                        'name' => $hotel['name'] ?? $hotel['id'] ?? 'Hotel',
-                        'location' => $hotel['location'] ?? null,
-                        'stars' => $hotel['stars'] ?? null,
-                        'image' => $hotel['image'] ?? null,
-                    ],
-                    'search' => [
-                        'checkin' => $validated['checkin'],
-                        'checkout' => $validated['checkout'],
-                        'occupancy' => $validated['occupancy'],
-                        'residency' => $validated['residency'],
-                    ],
-                    'rates' => $roomRates,
-                ], now()->addMinutes(15));
+
+Cache::put(
+    'admin_hotel_rooms:' . hash('sha256', $token),
+    [
+        'session' => hash(
+            'sha256',
+            $request->session()->getId()
+        ),
+
+        'environment' => $result['environment'] ?? config(
+            'services.ratehawk.environment',
+            'sandbox'
+        ),
+
+        'hid' => (int) $hotel['hid'],
+
+        'hotel' => [
+            'name' => $hotel['name']
+                ?? $hotel['id']
+                ?? 'Hotel',
+            'location' => $hotel['location'] ?? null,
+            'stars' => $hotel['stars'] ?? null,
+            'image' => $hotel['image'] ?? null,
+        ],
+
+        'search' => [
+            'checkin' => $validated['checkin'],
+            'checkout' => $validated['checkout'],
+            'occupancy' => $validated['occupancy'],
+            'residency' => $validated['residency'],
+            'language' => 'en',
+            'currency' => 'USD',
+            'guests' => $guests,
+        ],
+
+        // SERP rates are previews only.
+        // Hotelpage rates will replace them after
+        // the selected hotel's Hotelpage request.
+        'rates_source' => 'serp',
+        'rates' => $roomRates,
+    ],
+    now()->addMinutes(15)
+);
+
                 $hotel['rooms_token'] = $token;
             }
             unset($hotel);

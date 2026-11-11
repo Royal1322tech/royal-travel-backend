@@ -51,6 +51,13 @@ class AdminDashboardAccessTest extends TestCase
         $user = User::factory()->create();
         $this->assignRoleWithPermission($user, 'admin', 'dashboard.view');
 
+        DB::table('rt_admin_access')->insert([
+            'user_id' => $user->id,
+            'is_enabled' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $this->withSession(['auth_portal' => 'admin'])->actingAs($user)
             ->get('/admin/dashboard')
             ->assertOk();
