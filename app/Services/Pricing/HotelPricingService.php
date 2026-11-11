@@ -48,23 +48,50 @@ final class HotelPricingService
         return ['policy_id' => $policy->id, 'version' => $policy->version] + $values;
     }
 
-    public function saveRule(string $level, ?string $companyId, string $percentage, string $fixed): void
-    {
+    /**
+     * Persist a new version. B2B dashboard must supply expectedVersion and actorUserId.
+     * Optional parameters preserve existing internal/Admin callers; migrate them separately.
+     * Returns new policy ID and version for the controller, never for a public API.
+     */
+    public function saveRule(
+        string $level,
+        ?string $companyId,
+        string $percentage,
+        string $fixed,
+        ?int $expectedVersion = null,
+        ?int $actorUserId = null,
+        ?string $requestId = null
+    ): array {
         $code = $this->policyCode($level, $companyId);
-        foreach ([$percentage, $fixed] as $value) {
-            if (!preg_match('/^\d{1,8}(?:\.\d{1,6})?$/D', $value)) {
-                throw new InvalidArgumentException('Invalid nonnegative markup.');
-            }
+        if (!preg_match('/^\d{1,3}(?:\.\d{1,6})?$/D', $percentage)
+            || !preg_match('/^\d{1,7}(?:\.\d{1,2})?$/D', $fixed)) {
+            throw new InvalidArgumentException('Invalid markup format.');
         }
         if ((float) $percentage > 100 || (float) $fixed > 1000000) {
             throw new InvalidArgumentException('Markup exceeds configured safety limit.');
         }
-        DB::transaction(function () use ($code, $level, $companyId, $percentage, $fixed) {
-            // Serialize pricing changes across workers using a PostgreSQL transaction lock.
+        if ($expectedVersion !== null && $expectedVersion < 0) {
+            throw new InvalidArgumentException('Invalid expected pricing version.');
+        }
+
+        return DB::transaction(function () use (
+            $code, $level, $companyId, $percentage, $fixed,
+            $expectedVersion, $actorUserId, $requestId
+        ): array {
             DB::select('SELECT pg_advisory_xact_lock(hashtext(?))', [$code]);
-            $version = ((int) DB::table('rt_pricing_policies')->where('code', $code)->max('version')) + 1;
-            DB::table('rt_pricing_policies')->where('code', $code)->where('status', 'active')
-                ->update(['status' => 'superseded']);
+            $current = DB::table('rt_pricing_policies')
+                ->where('code', $code)->where('status', 'active')
+                ->orderByDesc('version')->first();
+            $currentVersion = $current ? (int) $current->version : 0;
+            if ($expectedVersion !== null && $currentVersion !== $expectedVersion) {
+                throw new \App\Services\Pricing\PricingVersionConflictException(
+                    'Pricing settings changed. Refresh the page and try again.'
+                );
+            }
+            $version = ((int) DB::table('rt_pricing_policies')
+                ->where('code', $code)->max('version')) + 1;
+            DB::table('rt_pricing_policies')->where('code', $code)
+                ->where('status', 'active')->update(['status' => 'superseded']);
             $policyId = (string) Str::uuid();
             DB::table('rt_pricing_policies')->insert([
                 'id' => $policyId, 'code' => $code, 'version' => $version,
@@ -80,6 +107,25 @@ final class HotelPricingService
                     'supplier_id' => null,
                 ]);
             }
+            if ($level === 'company_b2b' && $actorUserId !== null) {
+                DB::table('rt_audit_events')->insert([
+                    'id' => (string) Str::uuid(),
+                    'actor_user_id' => $actorUserId,
+                    'company_id' => $companyId,
+                    'action' => 'pricing.company.updated',
+                    'entity_type' => 'pricing_policy',
+                    'entity_id' => $policyId,
+                    'request_id' => $requestId,
+                    'occurred_at' => now(),
+                    'metadata' => json_encode([
+                        'previous_version' => $currentVersion,
+                        'new_version' => $version,
+                        'percentage' => $percentage,
+                        'fixed' => $fixed,
+                    ], JSON_THROW_ON_ERROR),
+                ]);
+            }
+            return ['policy_id' => $policyId, 'version' => $version];
         });
     }
 

@@ -65,19 +65,28 @@ class AdminHotelAccessTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_with_hotel_permission_can_open_search_page(): void
-    {
-        $this->withoutVite();
 
-        $user = User::factory()->create();
+public function test_admin_with_hotel_permission_can_open_search_page(): void
+{
+    $this->withoutVite();
 
-        $this->assignPermission($user, 'admin', 'hotels.view');
+    $user = User::factory()->create();
 
-        $this->withSession(['auth_portal' => 'admin'])
-            ->actingAs($user)
-            ->get('/admin/hotels')
-            ->assertOk();
-    }
+    DB::table('rt_admin_access')->insert([
+        'user_id' => $user->id,
+        'is_enabled' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $this->assignPermission($user, 'admin', 'hotels.view');
+
+    $this->withSession(['auth_portal' => 'admin'])
+        ->actingAs($user)
+        ->get('/admin/hotels')
+        ->assertOk();
+}
+
 
     public function test_user_without_hotel_permission_cannot_access_rooms(): void
     {
@@ -124,4 +133,54 @@ class AdminHotelAccessTest extends TestCase
             'company_id' => null,
         ]);
     }
+
+
+public function test_guest_cannot_select_hotel_room(): void
+{
+    $this->post(
+        '/admin/hotels/rooms/' . Str::random(48) . '/select',
+        ['rate_index' => 0]
+    )->assertRedirect(route('admin.login'));
+}
+
+public function test_user_without_hotel_permission_cannot_select_room(): void
+{
+    $user = User::factory()->create();
+
+    $this->assignPermission($user, 'admin', 'dashboard.view');
+
+    $this->withSession(['auth_portal' => 'admin'])
+        ->actingAs($user)
+        ->post(
+            '/admin/hotels/rooms/' . Str::random(48) . '/select',
+            ['rate_index' => 0]
+        )
+        ->assertForbidden();
+}
+
+
+
+
+
+
+public function test_disabled_admin_access_blocks_hotel_page(): void
+{
+    $user = User::factory()->create();
+
+    DB::table('rt_admin_access')->insert([
+        'user_id' => $user->id,
+        'is_enabled' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $this->assignPermission($user, 'admin', 'hotels.view');
+
+    $this->withSession(['auth_portal' => 'admin'])
+        ->actingAs($user)
+        ->get('/admin/hotels')
+        ->assertForbidden();
+}
+
+
 }

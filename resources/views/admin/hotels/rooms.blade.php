@@ -80,7 +80,27 @@
                         @endif
                         <p class="text-xs text-slate-400">Cancellation and payment terms: pending supplier rate validation.</p>
                     </div>
-                    <button type="button" disabled title="Room selection will be enabled after pricing and rate recheck" class="cursor-not-allowed rounded-xl bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-500">Select Room · Coming Soon</button>
+
+<form
+    method="POST"
+    action="{{ route('admin.hotels.rooms.select', ['token' => $token]) }}"
+>
+    @csrf
+
+    <input
+        type="hidden"
+        name="rate_index"
+        value="{{ $room['rate_index'] }}"
+    >
+
+    <button
+        type="submit"
+        class="rounded-xl bg-[#02143C] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#102B62] focus:outline-none focus:ring-2 focus:ring-[#B7731E] focus:ring-offset-2"
+    >
+        Select Room
+    </button>
+</form>
+
                 </div>
             </article>
         @empty

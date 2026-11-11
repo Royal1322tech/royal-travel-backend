@@ -19,6 +19,13 @@ class CompanyApprovalTest extends TestCase
 
         $this->grantManagePermission($admin);
 
+        DB::table('rt_admin_access')->insert([
+            'user_id' => $admin->id,
+            'is_enabled' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $companyId = (string) Str::uuid();
 
         DB::table('rt_companies')->insert([

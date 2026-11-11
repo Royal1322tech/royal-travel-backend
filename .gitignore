@@ -21,3 +21,6 @@ id_ed25519
 
 # Generated Vite production assets
 /public/build/
+
+/public/hot
+/storage/framework/lsp-*.php

@@ -5,7 +5,7 @@
 @section('content')
 @php
 $directPercent = old('level') === 'royal_direct' ? old('percentage', '0') : ($direct['percentage'] ?? '0');
-$directFixed = old('level') === 'royal_direct' ? old('fixed', '0') : ($direct['fixed'] ?? '0');
+$directFixed = number_format((float) (old('level') === 'royal_direct' ? old('fixed', '0') : ($direct['fixed'] ?? '0')), 2, '.', '');
 $companyCount = method_exists($companies, 'total') ? $companies->total() : $companies->count();
 @endphp
 
@@ -172,7 +172,7 @@ $companyCount = method_exists($companies, 'total') ? $companies->total() : $comp
                     $companyFormId = 'company-pricing-'. $company->id;
                     $companyOld = old('level') === 'royal_b2b' && old('company_id') === (string) $company->id;
                     $companyPercentage = $companyOld ? old('percentage', '0') : ($company->royal_rule['percentage'] ?? '0');
-                    $companyFixed = $companyOld ? old('fixed', '0') : ($company->royal_rule['fixed'] ?? '0');
+                   $companyFixed = number_format((float) ($companyOld ? old('fixed', '0') : ($company->royal_rule['fixed'] ?? '0')), 2, '.', '');
                     @endphp
                     <tr class="group">
                         <td class="border-b border-slate-100 px-3 py-4 align-middle">

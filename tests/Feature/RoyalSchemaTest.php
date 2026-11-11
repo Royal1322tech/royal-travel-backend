@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class RoyalSchemaTest extends TestCase
 {
-    public function test_royal_database_contains_54_tables(): void
+    public function test_royal_database_contains_58_tables(): void
     {
         $this->assertSame('pgsql', DB::getDriverName());
 
@@ -19,7 +19,7 @@ class RoyalSchemaTest extends TestCase
               AND table_name LIKE 'rt_%'
         ");
 
-        $this->assertEquals(55, (int) $result->total);
+        $this->assertEquals(58, (int) $result->total);
         $this->assertTrue(
             \Illuminate\Support\Facades\Schema::hasTable('rt_company_contacts')
         );
