@@ -25,6 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(
+            at: array_filter(explode(',', env('TRUSTED_PROXIES', '172.16.1.0/24')))
+        );
+
 
         $middleware->web(append: [
             \App\Http\Middleware\SetLocale::class,
@@ -41,6 +45,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.permission' =>
                 \App\Http\Middleware\EnsureAdminPermission::class,
         ]);
+
+        $middleware->redirectUsersTo(function ($request) {
+            if ($request->is('admin/*')) {
+                return route('admin.dashboard');
+            }
+            return '/';
+        });
 
         $middleware->redirectGuestsTo(function ($request) {
 

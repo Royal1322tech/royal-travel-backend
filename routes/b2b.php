@@ -1,4 +1,3 @@
-
 <?php
 
 use App\Http\Controllers\B2B\Auth\PasswordSetupController;
