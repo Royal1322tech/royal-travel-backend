@@ -67,59 +67,70 @@ class RateHawkClient
      *
      * @throws RuntimeException
      */
-    public function post(string $path, array $payload): array
-    {
-        $keyId = config('services.ratehawk.key_id');
-        $apiKey = config('services.ratehawk.api_key');
 
-        if (
-            ! is_string($keyId) ||
-            $keyId === '' ||
-            ! is_string($apiKey) ||
-            $apiKey === ''
-        ) {
-            throw new RuntimeException(
-                'RateHawk API credentials are not configured.'
-            );
-        }
+public function post(
+    string $path,
+    array $payload,
+    int $timeout = 30
+): array {
+    $keyId = config('services.ratehawk.key_id');
+    $apiKey = config('services.ratehawk.api_key');
 
-        if (
-            ! str_starts_with($path, '/api/b2b/v3/') ||
-            str_contains($path, '://') ||
-            str_contains($path, '..')
-        ) {
-            throw new RuntimeException(
-                'Invalid RateHawk API path.'
-            );
-        }
-
-        $response = Http::withOptions([
-                'verify' => $this->sslVerifyOption(),
-            ])
-            ->withBasicAuth($keyId, $apiKey)
-            ->acceptJson()
-            ->asJson()
-            ->connectTimeout(10)
-            ->timeout(30)
-            ->post(
-                $this->baseUrl() . $path,
-                $payload
-            );
-
-        if (! $response->successful()) {
-            throw new RuntimeException(
-                'RateHawk API returned HTTP ' . $response->status()
-            );
-        }
-
-        $data = $response->json();
-
-        if (! is_array($data)) {
-            throw new RuntimeException(
-                'Invalid RateHawk JSON response.'
-            );
-        }
-
-        return $data;
+    if (
+        ! is_string($keyId) ||
+        $keyId === '' ||
+        ! is_string($apiKey) ||
+        $apiKey === ''
+    ) {
+        throw new RuntimeException(
+            'RateHawk API credentials are not configured.'
+        );
     }
+
+    if (
+        ! str_starts_with($path, '/api/b2b/v3/') ||
+        str_contains($path, '://') ||
+        str_contains($path, '..')
+    ) {
+        throw new RuntimeException(
+            'Invalid RateHawk API path.'
+        );
+    }
+
+    if ($timeout < 1 || $timeout > 120) {
+        throw new RuntimeException(
+            'Invalid RateHawk request timeout.'
+        );
+    }
+
+    $response = Http::withOptions([
+            'verify' => $this->sslVerifyOption(),
+        ])
+        ->withBasicAuth($keyId, $apiKey)
+        ->acceptJson()
+        ->asJson()
+        ->connectTimeout(10)
+        ->timeout($timeout)
+        ->post(
+            $this->baseUrl() . $path,
+            $payload
+        );
+
+    if (! $response->successful()) {
+        throw new RuntimeException(
+            'RateHawk API returned HTTP ' . $response->status()
+        );
+    }
+
+    $data = $response->json();
+
+    if (! is_array($data)) {
+        throw new RuntimeException(
+            'Invalid RateHawk JSON response.'
+        );
+    }
+
+    return $data;
+}
+
 }
