@@ -654,7 +654,7 @@ Log::info('RateHawk Prebook total structure', [
         }
 
         // Temporary local diagnostic: field names only, never values.
-      
+
 $payment = $paymentTypes[0] ?? [];
 
 $taxData = $payment['tax_data'] ?? null;

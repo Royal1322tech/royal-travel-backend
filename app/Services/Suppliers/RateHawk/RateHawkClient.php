@@ -67,7 +67,7 @@ class RateHawkClient
      *
      * @throws RuntimeException
      */
-  
+
 public function post(
     string $path,
     array $payload,
