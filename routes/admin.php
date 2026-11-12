@@ -1,4 +1,3 @@
-
 <?php
 
 use Illuminate\Support\Facades\Route;
@@ -199,12 +198,22 @@ Route::prefix('admin')
                 ->name('hotels.rooms');
 
 
-                Route::post('/hotels/rooms/{token}/select', [
-    HotelRoomsController::class,
-    'select',
-])
+            Route::post('/hotels/rooms/{token}/select', [
+                HotelRoomsController::class,
+                'select',
+            ])
+                ->middleware('admin.permission:hotels.view')
+                ->name('hotels.rooms.select');
+
+
+
+Route::get(
+    '/hotels/rooms/review/{token}',
+    [HotelRoomsController::class, 'review']
+)
     ->middleware('admin.permission:hotels.view')
-    ->name('hotels.rooms.select');
+    ->name('hotels.rooms.review');
+
 
             /*
             |--------------------------------------------------------------------------
@@ -340,6 +349,16 @@ Route::prefix('admin')
             })
                 ->middleware('admin.permission:suppliers.manage')
                 ->name('ratehawk.ssl-diagnostic');
+
+
+
+
+            Route::post('/hotels/rooms/{token}/prebook', [
+                HotelRoomsController::class,
+                'prebook',
+            ])
+                ->middleware('admin.permission:hotels.view')
+                ->name('hotels.rooms.prebook');
 
         });
     });
