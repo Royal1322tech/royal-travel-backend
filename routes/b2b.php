@@ -33,12 +33,6 @@ Route::prefix('b2b')
                 ->middleware('throttle:5,1')
                 ->name('login.submit');
 
-            Route::get('/verify-otp', [DashboardLoginController::class, 'showOtp'])
-                ->name('otp.show');
-
-            Route::post('/verify-otp', [DashboardLoginController::class, 'verifyOtp'])
-                ->middleware('throttle:5,1')
-                ->name('otp.verify');
         });
 
         Route::middleware('auth')->post(
