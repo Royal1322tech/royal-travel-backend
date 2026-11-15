@@ -9,6 +9,7 @@ services:
       - /opt/royal-travel/staging/.env
     networks:
       - internal
+      - egress
     volumes:
       - /opt/royal-travel/staging/storage:/var/www/html/storage
 
@@ -36,3 +37,6 @@ networks:
   proxy:
     external: true
     name: royal-proxy
+  egress:
+    external: true
+    name: royal-staging-backend_egress
