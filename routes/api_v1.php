@@ -1,29 +1,64 @@
 <?php
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+
 use App\Http\Controllers\Api\V1\B2B\Auth\B2BLoginController;
 use App\Http\Controllers\Api\V1\B2B\Auth\CompanyRegistrationController;
 use App\Http\Controllers\Api\V1\B2B\Auth\CompanyEmailVerificationController;
 use App\Http\Controllers\Api\V1\B2B\B2BProfileController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\V1\B2B\Hotels\TopRatedController;
+
+use App\Http\Controllers\Api\V1\B2B\Hotels\HotelSearchController as B2BHotelSearchController;
+use App\Http\Controllers\Api\V1\B2C\Hotels\HotelSearchController as B2CHotelSearchController;
+
+// Temporary reuse of existing Rooms Controller.
+// Its B2C-specific logic must be adapted before B2B testing.
+use App\Http\Controllers\Api\V1\B2B\Hotels\HotelRoomsApiController;
 
 /*
 |--------------------------------------------------------------------------
-| Royal Travel API V1 - B2B
+| Royal Travel API V1
 |--------------------------------------------------------------------------
 |
 | Base URL: /api/v1
 |
-| Authentication:
+| B2B Authentication:
 | POST /b2b/auth/register
 | POST /b2b/auth/login
-| POST /b2b/auth/verify-email
+| POST /b2b/auth/verify-otp
 | POST /b2b/auth/resend-verification-otp
 | POST /b2b/auth/logout
 |
-| Company Profile:
-| GET /b2b/me
+| B2B Profile:
+| GET   /b2b/me
+| PATCH /b2b/me
+|
+| B2B Hotels:
+| POST /b2b/hotels/search
+| POST /b2b/hotels/{hid}/rooms
+| POST /b2b/hotels/rooms/select
+| POST /b2b/hotels/rooms/prebook
+|
+| B2C Hotels:
+| POST /b2c/hotels/search
+|
+| Other:
+| GET /topRated
+| GET /foundation-check
 |
 */
+
+/*
+|--------------------------------------------------------------------------
+| Top Rated Hotels
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/topRated', [
+    TopRatedController::class,
+    'topRated',
+])->name('topRated');
 
 /*
 |--------------------------------------------------------------------------
@@ -49,11 +84,19 @@ Route::prefix('b2b/auth')
             ->middleware('throttle:5,1')
             ->name('login');
 
-        Route::post('/verify-otp', [CompanyEmailVerificationController::class, 'verify'])
-            ->middleware('throttle:5,1')->name('verify-email');
+        Route::post('/verify-otp', [
+            CompanyEmailVerificationController::class,
+            'verify',
+        ])
+            ->middleware('throttle:5,1')
+            ->name('verify-email');
 
-        Route::post('/resend-verification-otp', [CompanyEmailVerificationController::class, 'resend'])
-            ->middleware('throttle:3,5')->name('resend-verification-otp');
+        Route::post('/resend-verification-otp', [
+            CompanyEmailVerificationController::class,
+            'resend',
+        ])
+            ->middleware('throttle:3,5')
+            ->name('resend-verification-otp');
 
         Route::post('/logout', [
             B2BLoginController::class,
@@ -79,30 +122,30 @@ Route::prefix('b2b')
             'me',
         ])->name('me');
 
-
         Route::patch('/me', [
-    B2BProfileController::class,
-    'update',
-])->middleware('auth:sanctum')->name('b2b.profile.update');
+            B2BProfileController::class,
+            'update',
+        ])->name('profile.update');
     });
 
+/*
+|--------------------------------------------------------------------------
+| Foundation Health & Localization
+|--------------------------------------------------------------------------
+*/
 
-// Foundation health and localization check.
-Route::get('/foundation-check', function (\Illuminate\Http\Request $request) {
+Route::get('/foundation-check', function (Request $request) {
     $locale = $request->header('X-Locale', 'en');
-    $locale = in_array($locale, ['ar', 'en'], true) ? $locale : 'en';
+
+    $locale = in_array($locale, ['ar', 'en'], true)
+        ? $locale
+        : 'en';
 
     return response()->json([
         'locale' => $locale,
         'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
     ]);
 })->name('api.v1.foundation-check');
-
-
-
-
-
-
 
 /*
 |--------------------------------------------------------------------------
@@ -111,12 +154,11 @@ Route::get('/foundation-check', function (\Illuminate\Http\Request $request) {
 */
 
 Route::post('/b2c/hotels/search', [
-    \App\Http\Controllers\Api\V1\B2C\Hotels\HotelSearchController::class,
+    B2CHotelSearchController::class,
     '__invoke',
 ])
     ->middleware('throttle:10,1')
     ->name('api.v1.b2c.hotels.search');
-
 
 /*
 |--------------------------------------------------------------------------
@@ -125,7 +167,7 @@ Route::post('/b2c/hotels/search', [
 */
 
 Route::post('/b2b/hotels/search', [
-    \App\Http\Controllers\Api\V1\B2B\Hotels\HotelSearchController::class,
+    B2BHotelSearchController::class,
     '__invoke',
 ])
     ->middleware([
@@ -134,3 +176,65 @@ Route::post('/b2b/hotels/search', [
         'throttle:20,1',
     ])
     ->name('api.v1.b2b.hotels.search');
+
+/*
+|--------------------------------------------------------------------------
+| Hotel Rooms API - B2B
+|--------------------------------------------------------------------------
+|
+| All endpoints require:
+| - Sanctum authentication
+| - Active company access
+| - hotels.view permission
+|
+| IMPORTANT:
+| The current Rooms Controller is still under the B2C
+| namespace and may contain B2C-specific restrictions.
+| It must be adapted to the B2B channel before use.
+|
+*/
+
+Route::prefix('b2b/hotels')
+    ->name('api.v1.b2b.hotels.')
+    ->middleware([
+        'auth:sanctum',
+        'b2b.api.permission:hotels.view',
+        'throttle:20,1',
+    ])
+    ->group(function (): void {
+
+        /*
+        |--------------------------------------------------------------
+        | Select Room
+        |--------------------------------------------------------------
+        */
+
+        Route::post('/rooms/select', [
+            HotelRoomsApiController::class,
+            'select',
+        ])->name('rooms.select');
+
+        /*
+        |--------------------------------------------------------------
+        | Prebook Room
+        |--------------------------------------------------------------
+        */
+
+        Route::post('/rooms/prebook', [
+            HotelRoomsApiController::class,
+            'prebook',
+        ])->name('rooms.prebook');
+
+        /*
+        |--------------------------------------------------------------
+        | Get Hotel Rooms
+        |--------------------------------------------------------------
+        */
+
+        Route::post('/{hid}/rooms', [
+            HotelRoomsApiController::class,
+            'rooms',
+        ])
+            ->whereNumber('hid')
+            ->name('rooms.index');
+    });
