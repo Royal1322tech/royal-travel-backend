@@ -21,7 +21,7 @@ class B2BRegistrationOtpTest extends TestCase
         $owner = User::factory()->unverified()->create();
         $companyId = (string) Str::uuid();
         DB::table('rt_companies')->insert([
-            'id' => $companyId, 'legal_name' => 'Pending OTP Test', 'status' => 'pending',
+            'id' => $companyId, 'legal_name' => 'Pending OTP Test', 'status' => 'approved',
         ]);
         DB::table('rt_company_memberships')->insert([
             'id' => (string) Str::uuid(), 'company_id' => $companyId,
