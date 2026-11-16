@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\B2B\Auth\B2BLoginController;
 use App\Http\Controllers\Api\V1\B2B\Auth\CompanyRegistrationController;
+use App\Http\Controllers\Api\V1\B2B\Auth\CompanyEmailVerificationController;
 use App\Http\Controllers\Api\V1\B2B\B2BProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,7 +16,8 @@ use Illuminate\Support\Facades\Route;
 | Authentication:
 | POST /b2b/auth/register
 | POST /b2b/auth/login
-| POST /b2b/auth/verify-otp
+| POST /b2b/auth/verify-email
+| POST /b2b/auth/resend-verification-otp
 | POST /b2b/auth/logout
 |
 | Company Profile:
@@ -47,12 +49,11 @@ Route::prefix('b2b/auth')
             ->middleware('throttle:5,1')
             ->name('login');
 
-        Route::post('/verify-otp', [
-            B2BLoginController::class,
-            'verifyOtp',
-        ])
-            ->middleware('throttle:5,1')
-            ->name('verify-otp');
+        Route::post('/verify-otp', [CompanyEmailVerificationController::class, 'verify'])
+            ->middleware('throttle:5,1')->name('verify-email');
+
+        Route::post('/resend-verification-otp', [CompanyEmailVerificationController::class, 'resend'])
+            ->middleware('throttle:3,5')->name('resend-verification-otp');
 
         Route::post('/logout', [
             B2BLoginController::class,
@@ -77,6 +78,12 @@ Route::prefix('b2b')
             B2BProfileController::class,
             'me',
         ])->name('me');
+
+
+        Route::patch('/me', [
+    B2BProfileController::class,
+    'update',
+])->middleware('auth:sanctum')->name('b2b.profile.update');
     });
 
 

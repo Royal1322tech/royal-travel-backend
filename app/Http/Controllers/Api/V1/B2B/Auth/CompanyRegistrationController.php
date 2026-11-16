@@ -68,7 +68,7 @@ class CompanyRegistrationController extends Controller
             ],
         ]);
 
-        $result = DB::transaction(function () use ($data) {
+        $company = DB::transaction(function () use ($data) {
             $duplicate = DB::table('rt_companies')
                 ->where('country_code', $data['country_code'])
                 ->where('registration_no', $data['registration_no'])
@@ -81,6 +81,7 @@ class CompanyRegistrationController extends Controller
                 ]);
             }
 
+            // Create company - pending admin approval
             $company = new Company();
             $company->id = (string) Str::uuid();
             $company->legal_name = $data['legal_name'];
@@ -99,6 +100,7 @@ class CompanyRegistrationController extends Controller
             $company->created_by = null;
             $company->save();
 
+            // Create company owner
             $owner = new User();
             $owner->name = $data['contact_name'];
             $owner->email = $data['contact_email'];
@@ -107,6 +109,7 @@ class CompanyRegistrationController extends Controller
             $owner->password_changed_at = now();
             $owner->save();
 
+            // Save primary company contact
             DB::table('rt_company_contacts')->insert([
                 'id' => (string) Str::uuid(),
                 'company_id' => $company->id,
@@ -122,6 +125,7 @@ class CompanyRegistrationController extends Controller
                 'updated_at' => now(),
             ]);
 
+            // Membership remains pending until activation
             DB::table('rt_company_memberships')->insert([
                 'id' => (string) Str::uuid(),
                 'company_id' => $company->id,
@@ -132,6 +136,7 @@ class CompanyRegistrationController extends Controller
                 'updated_at' => now(),
             ]);
 
+            // Assign B2B company admin role
             $roleId = DB::table('rt_roles')
                 ->where('portal', 'b2b')
                 ->where('code', 'company_admin')
@@ -154,10 +159,13 @@ class CompanyRegistrationController extends Controller
             return $company;
         });
 
+        // OTP is NOT sent during registration.
+        // OTP will be sent after admin approval.
+
         return response()->json([
-            'message' => 'Registration submitted. Awaiting admin approval.',
-            'company_id' => $result->id,
-            'status' => 'pending',
+            'message' => 'Registration submitted successfully. Awaiting admin approval.',
+            'company_id' => $company->id,
+            'status' => 'pending_admin_approval',
         ], 201);
     }
 }

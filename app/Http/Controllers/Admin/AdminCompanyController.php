@@ -172,9 +172,12 @@ public function index(Request $request): View
 
 
 
-    public function approve(Company $company): RedirectResponse
-{
-    DB::transaction(function () use ($company): void {
+   
+public function approve(
+    Company $company,
+    \App\Modules\Identity\Services\B2BRegistrationOtpService $otpService
+): RedirectResponse {
+    $ownerId = DB::transaction(function () use ($company): string {
 
         $locked = Company::query()
             ->whereKey($company->id)
@@ -185,25 +188,67 @@ public function index(Request $request): View
             abort(409, 'Only pending companies can be approved.');
         }
 
-        // Activate pending memberships of the approved company.
-        DB::table('rt_company_memberships')
+        $ownerId = DB::table('rt_company_memberships')
             ->where('company_id', $locked->id)
+            ->where('role_code', 'company_admin')
             ->where('status', 'pending')
-            ->update([
-                'status' => 'active',
-                'approved_by' => auth()->id(),
-                'approved_at' => now(),
-                'updated_at' => now(),
-            ]);
+            ->value('user_id');
 
+        if (! $ownerId) {
+            abort(409, 'Pending company owner not found.');
+        }
+
+        // Admin approves the company first.
         $locked->status = 'approved';
         $locked->save();
+
+        DB::table('rt_company_memberships')
+    ->where('company_id', $locked->id)
+    ->where('user_id', $ownerId)
+    ->where('role_code', 'company_admin')
+    ->where('status', 'pending')
+    ->update([
+        'approved_by' => auth()->id(),
+        'approved_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+        // Owner membership remains pending until OTP verification.
+        // Other memberships also remain unchanged.
+
+        return (string) $ownerId;
     });
+
+    $owner = \App\Models\User::query()->findOrFail($ownerId);
+
+    try {
+        $otpService->send($owner, $company->id);
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error(
+            'Failed to send company approval OTP.',
+            [
+                'company_id' => $company->id,
+                'user_id' => $ownerId,
+                'exception' => $e->getMessage(),
+            ]
+        );
+
+        return redirect()
+            ->route('admin.companies.show', $company->id)
+            ->with(
+                'error',
+                'Company approved, but OTP email could not be sent. Please retry email delivery.'
+            );
+    }
 
     return redirect()
         ->route('admin.companies.show', $company->id)
-        ->with('success', 'Company approved successfully.');
+        ->with(
+            'success',
+            'Company approved successfully. Verification OTP sent to the owner.'
+        );
 }
+
 
 public function deactivate(Company $company): RedirectResponse
 {
