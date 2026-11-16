@@ -3,8 +3,10 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\User;
+use App\Notifications\B2BRegistrationOtpNotification;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -12,10 +14,11 @@ class CompanyApprovalTest extends TestCase
 {
     use DatabaseTransactions;
 
-    public function test_admin_approval_activates_company_and_membership(): void
+    public function test_admin_approval_sends_otp_and_keeps_membership_pending(): void
     {
+        Notification::fake();
         $admin = User::factory()->create();
-        $owner = User::factory()->create();
+        $owner = User::factory()->unverified()->create();
 
         $this->grantManagePermission($admin);
 
@@ -54,7 +57,7 @@ class CompanyApprovalTest extends TestCase
         $this->assertDatabaseHas('rt_company_memberships', [
             'company_id' => $companyId,
             'user_id' => $owner->id,
-            'status' => 'active',
+            'status' => 'pending',
             'approved_by' => $admin->id,
         ]);
 
@@ -63,6 +66,11 @@ class CompanyApprovalTest extends TestCase
                 ->where('company_id', $companyId)
                 ->where('user_id', $owner->id)
                 ->value('approved_at')
+        );
+
+        Notification::assertSentTo(
+            $owner,
+            B2BRegistrationOtpNotification::class
         );
 
         $this->withSession(['auth_portal' => 'admin'])->actingAs($admin)

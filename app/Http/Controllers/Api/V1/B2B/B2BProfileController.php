@@ -8,6 +8,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class B2BProfileController extends Controller
 {
@@ -115,6 +117,7 @@ class B2BProfileController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'phone' => $user->phone,
                 ],
 
                 'company' => [
@@ -142,4 +145,123 @@ class B2BProfileController extends Controller
             ],
         ]);
     }
+
+
+public function update(Request $request): JsonResponse
+{
+    $user = $request->user();
+    $token = $user?->currentAccessToken();
+
+    if (! $user || ! $token instanceof PersonalAccessToken) {
+        return response()->json([
+            'message' => 'Unauthenticated.',
+        ], 401);
+    }
+
+    if (! $token->can('b2b:access')) {
+        return response()->json([
+            'message' => 'Forbidden.',
+        ], 403);
+    }
+
+    $companyAbilities = collect($token->abilities ?? [])
+        ->filter(
+            fn ($ability) =>
+                is_string($ability) &&
+                str_starts_with($ability, 'company:')
+        )
+        ->values();
+
+    if ($companyAbilities->count() !== 1) {
+        return response()->json([
+            'message' => 'Invalid company scope.',
+        ], 403);
+    }
+
+    $companyId = substr(
+        $companyAbilities->first(),
+        strlen('company:')
+    );
+
+    if (! Str::isUuid($companyId)) {
+        return response()->json([
+            'message' => 'Invalid company scope.',
+        ], 403);
+    }
+
+    $eligible = DB::table('rt_company_memberships')
+        ->join(
+            'rt_companies',
+            'rt_companies.id',
+            '=',
+            'rt_company_memberships.company_id'
+        )
+        ->where('rt_company_memberships.user_id', $user->id)
+        ->where('rt_company_memberships.company_id', $companyId)
+        ->where('rt_company_memberships.status', 'active')
+        ->whereNotNull('rt_company_memberships.approved_at')
+        ->where('rt_companies.status', 'approved')
+        ->exists();
+
+    if (! $eligible) {
+        return response()->json([
+            'message' => 'Company access is not available.',
+        ], 403);
+    }
+
+    $data = $request->validate([
+        'name' => ['sometimes', 'required', 'string', 'max:255'],
+        'phone' => ['sometimes', 'required', 'string', 'max:30'],
+    ]);
+
+    if (empty($data)) {
+        throw ValidationException::withMessages([
+            'profile' => 'Provide at least one field to update.',
+        ]);
+    }
+
+    DB::transaction(function () use ($user, $companyId, $data): void {
+        if (array_key_exists('name', $data)) {
+            $user->name = $data['name'];
+            $user->save();
+        }
+
+        $contactUpdates = [];
+
+        if (array_key_exists('name', $data)) {
+            $contactUpdates['full_name'] = $data['name'];
+        }
+
+        if (array_key_exists('phone', $data)) {
+            $contactUpdates['phone'] = $data['phone'];
+        }
+
+        if ($contactUpdates !== []) {
+            $contactUpdates['updated_at'] = now();
+
+            DB::table('rt_company_contacts')
+                ->where('company_id', $companyId)
+                ->where('user_id', $user->id)
+                ->update($contactUpdates);
+        }
+    });
+
+    $phone = DB::table('rt_company_contacts')
+        ->where('company_id', $companyId)
+        ->where('user_id', $user->id)
+        ->value('phone');
+
+    return response()->json([
+        'message' => 'Profile updated successfully.',
+        'data' => [
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $phone,
+            ],
+        ],
+    ]);
+}
+
 }
