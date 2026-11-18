@@ -25,7 +25,8 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // Lets the frontend read how long a 429 lasts, so it can show the real wait.
+    'exposed_headers' => ['Retry-After'],
 
     'max_age' => 0,
 

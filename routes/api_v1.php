@@ -74,28 +74,28 @@ Route::prefix('b2b/auth')
             CompanyRegistrationController::class,
             'register',
         ])
-            ->middleware('throttle:10,60')
+            ->middleware('throttle:b2b-register')
             ->name('register');
 
         Route::post('/login', [
             B2BLoginController::class,
             'login',
         ])
-            ->middleware('throttle:5,1')
+            ->middleware('throttle:b2b-login')
             ->name('login');
 
         Route::post('/verify-otp', [
             CompanyEmailVerificationController::class,
             'verify',
         ])
-            ->middleware('throttle:5,1')
+            ->middleware('throttle:b2b-verify-otp')
             ->name('verify-email');
 
         Route::post('/resend-verification-otp', [
             CompanyEmailVerificationController::class,
             'resend',
         ])
-            ->middleware('throttle:3,5')
+            ->middleware('throttle:b2b-resend-otp')
             ->name('resend-verification-otp');
 
         Route::post('/logout', [
