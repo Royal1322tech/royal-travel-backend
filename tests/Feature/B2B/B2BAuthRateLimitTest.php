@@ -19,6 +19,17 @@ class B2BAuthRateLimitTest extends TestCase
 {
     use DatabaseTransactions;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Each test gets its own empty, clock-aware limiter store. CI runs with CACHE_STORE=redis, where
+        // counters would carry over between tests and ignore travel(). The RateLimiter singleton is built
+        // while the app boots (AppServiceProvider registers the named limiters), so swap its store in place
+        // instead of rebinding it, which would drop those limiters. The limits are store-independent.
+        $store = $this->app->make('cache')->driver('array');
+        (fn () => $this->cache = $store)->call($this->app->make(\Illuminate\Cache\RateLimiter::class));
+    }
+
     private function fromIp(string $ip): static
     {
         return $this->withServerVariables(['REMOTE_ADDR' => $ip]);
