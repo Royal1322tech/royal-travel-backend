@@ -12,9 +12,8 @@ use App\Http\Controllers\Api\V1\B2B\Hotels\TopRatedController;
 use App\Http\Controllers\Api\V1\B2B\Hotels\HotelSearchController as B2BHotelSearchController;
 use App\Http\Controllers\Api\V1\B2C\Hotels\HotelSearchController as B2CHotelSearchController;
 
-// Temporary reuse of existing Rooms Controller.
-// Its B2C-specific logic must be adapted before B2B testing.
 use App\Http\Controllers\Api\V1\B2B\Hotels\HotelRoomsApiController;
+use App\Http\Controllers\Api\V1\B2B\Bookings\BookingDraftController;
 
 /*
 |--------------------------------------------------------------------------
@@ -39,6 +38,9 @@ use App\Http\Controllers\Api\V1\B2B\Hotels\HotelRoomsApiController;
 | POST /b2b/hotels/{hid}/rooms
 | POST /b2b/hotels/rooms/select
 | POST /b2b/hotels/rooms/prebook
+|
+| B2B Bookings:
+| POST /b2b/bookings/draft
 |
 | B2C Hotels:
 | POST /b2c/hotels/search
@@ -181,17 +183,6 @@ Route::post('/b2b/hotels/search', [
 |--------------------------------------------------------------------------
 | Hotel Rooms API - B2B
 |--------------------------------------------------------------------------
-|
-| All endpoints require:
-| - Sanctum authentication
-| - Active company access
-| - hotels.view permission
-|
-| IMPORTANT:
-| The current Rooms Controller is still under the B2C
-| namespace and may contain B2C-specific restrictions.
-| It must be adapted to the B2B channel before use.
-|
 */
 
 Route::prefix('b2b/hotels')
@@ -237,4 +228,29 @@ Route::prefix('b2b/hotels')
         ])
             ->whereNumber('hid')
             ->name('rooms.index');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Booking Draft API - B2B
+|--------------------------------------------------------------------------
+|
+| Creates a draft booking from a validated prebook review token.
+| No payment or supplier booking confirmation occurs here.
+|
+*/
+
+Route::prefix('b2b/bookings')
+    ->name('api.v1.b2b.bookings.')
+    ->middleware([
+        'auth:sanctum',
+        'b2b.api.permission:hotels.view',
+        'throttle:20,1',
+    ])
+    ->group(function (): void {
+
+        Route::post('/draft', [
+            BookingDraftController::class,
+            'store',
+        ])->name('draft');
     });
