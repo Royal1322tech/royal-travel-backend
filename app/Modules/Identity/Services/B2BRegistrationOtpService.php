@@ -62,7 +62,7 @@ public function send(User $user, string $companyId): void
     ]);
 
     try {
-        $user->notify(new B2BRegistrationOtpNotification($otp));
+        $user->notify(new B2BRegistrationOtpNotification($otp, $companyId));
     } catch (\Throwable $e) {
         DB::table('b2b_login_challenges')
             ->where('id', $id)
