@@ -17,51 +17,90 @@ final class HotelSearchApplicationService
         private readonly RateHawkPublicHotelProjector $projector,
     ) {}
 
-    public function search(array $params, string $channel, ?string $companyId = null): array
-    {
+    public function search(
+        array $params,
+        string $channel,
+        ?string $companyId = null
+    ): array {
         if (!in_array($channel, ['b2b', 'b2c'], true)) {
             throw new InvalidArgumentException('Unsupported channel.');
         }
 
-        if ($channel === 'b2b' && (!is_string($companyId) || !Str::isUuid($companyId))) {
-            throw new InvalidArgumentException('Authenticated company is required.');
+        if (
+            $channel === 'b2b'
+            && (!is_string($companyId) || !Str::isUuid($companyId))
+        ) {
+            throw new InvalidArgumentException(
+                'Authenticated company is required.'
+            );
         }
 
-        // Display currency is independent of the supplier settlement currency.
-        $displayCurrency = strtoupper(trim((string) ($params['currency'] ?? 'USD')));
+        // Display currency is independent of supplier settlement currency.
+        $displayCurrency = strtoupper(
+            trim((string) ($params['currency'] ?? 'USD'))
+        );
+
         if (!in_array($displayCurrency, ['USD', 'EGP', 'SAR'], true)) {
-            throw new InvalidArgumentException('Unsupported display currency.');
+            throw new InvalidArgumentException(
+                'Unsupported display currency.'
+            );
         }
 
         if (!$this->entitlements->isAllowed('RATEHAWK', $channel, 'hotel')) {
-            return $this->failure('HOTEL_SUPPLIER_UNAVAILABLE', 'Hotel search is currently unavailable.');
+            return $this->failure(
+                'HOTEL_SUPPLIER_UNAVAILABLE',
+                'Hotel search is currently unavailable.'
+            );
         }
 
         try {
-            // Never send the user's display currency to RateHawk.
-            // Prices remain unverified and must not be calculated from raw supplier fields.
-            $supplierResult = $this->rateHawk->searchByGeo(array_merge($params, [
-                'currency' => 'USD',
-            ]));
+            // Always request USD from RateHawk.
+            // Raw supplier prices remain unverified.
+            $supplierResult = $this->rateHawk->searchByGeo(
+                array_merge($params, [
+                    'currency' => 'USD',
+                ])
+            );
         } catch (Throwable $exception) {
             report($exception);
-            return $this->failure('HOTEL_SEARCH_NOT_READY', 'Hotel search is temporarily unavailable.');
+
+            return $this->failure(
+                'HOTEL_SEARCH_NOT_READY',
+                'Hotel search is temporarily unavailable.'
+            );
         }
 
-        // Pagination precedes content lookups. Never request content for the full SERP.
-        $supplierHotels = array_values(array_filter(
-            $supplierResult['hotels'] ?? [], 'is_array'
-        ));
+        // Paginate before content enrichment.
+        $supplierHotels = array_values(
+            array_filter(
+                $supplierResult['hotels'] ?? [],
+                'is_array'
+            )
+        );
+
         $total = count($supplierHotels);
         $page = max(1, (int) ($params['page'] ?? 1));
-        $perPage = min(20, max(1, (int) ($params['per_page'] ?? 20)));
-        $pageHotels = array_slice($supplierHotels, ($page - 1) * $perPage, $perPage);
+        $perPage = min(
+            20,
+            max(1, (int) ($params['per_page'] ?? 20))
+        );
+
+        $pageHotels = array_slice(
+            $supplierHotels,
+            ($page - 1) * $perPage,
+            $perPage
+        );
+
         $hotels = [];
 
         foreach ($pageHotels as $offset => $hotel) {
             $rooms = [];
+
             foreach (($hotel['rates'] ?? []) as $rate) {
-                if (!is_array($rate)) continue;
+                if (!is_array($rate)) {
+                    continue;
+                }
+
                 try {
                     $rooms[] = $this->normalizer->publicPreview(
                         $this->normalizer->normalize($rate)
@@ -72,24 +111,44 @@ final class HotelSearchApplicationService
             }
 
             $content = [];
+
+            // Real RateHawk hotel ID from the supplier search result.
             $hid = $hotel['hid'] ?? null;
-            // Enrich at most five hotels per page to bound external calls.
-            if (count($hotels) < 5 && (is_int($hid) || is_string($hid))
-                && ctype_digit((string) $hid)) {
+
+            // Enrich at most five hotels per page.
+            if (
+                count($hotels) < 5
+                && (is_int($hid) || is_string($hid))
+                && ctype_digit((string) $hid)
+            ) {
                 try {
                     $content = $this->content->getHotel(
-                        $hid, (string) ($params['language'] ?? 'en')
+                        $hid,
+                        (string) ($params['language'] ?? 'en')
                     );
                 } catch (Throwable $exception) {
                     report($exception);
                 }
             }
 
-            $hotels[] = $this->projector->preview(
+            // Preserve all existing projected hotel fields.
+            $preview = $this->projector->preview(
                 $page * $perPage - $perPage + $offset,
                 $rooms,
                 $content
             );
+
+            // Expose the real supplier HID for Rooms Integration.
+            // Never use a generated or internal hotel ID here.
+            $preview['hid'] = (
+                (is_int($hid) || is_string($hid))
+                && ctype_digit((string) $hid)
+                && (int) $hid > 0
+            )
+                ? (int) $hid
+                : null;
+
+            $hotels[] = $preview;
         }
 
         return [
@@ -109,13 +168,18 @@ final class HotelSearchApplicationService
         ];
     }
 
-    private function failure(string $code, string $message): array
-    {
+    private function failure(
+        string $code,
+        string $message
+    ): array {
         return [
             'success' => false,
             'code' => $code,
             'message' => $message,
-            'data' => ['hotels' => [], 'total' => 0],
+            'data' => [
+                'hotels' => [],
+                'total' => 0,
+            ],
         ];
     }
 }
