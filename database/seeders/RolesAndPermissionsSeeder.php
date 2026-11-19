@@ -18,6 +18,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'users.manage',
             'hotels.view',
             'bookings.view',
+            'price_requests.view',
+            'price_requests.manage',
             'bookings.create',
             'bookings.cancel',
             'payments.view',
@@ -25,6 +27,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'suppliers.view',
             'suppliers.manage',
             'reports.view',
+            'loyalty.view',
+            'loyalty.manage',
         ];
 
         $roles = [
