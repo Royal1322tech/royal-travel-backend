@@ -9,6 +9,15 @@ use Throwable;
 
 final class HotelSearchApplicationService
 {
+    private const AMENITIES = [
+        'non_smoking' => ['non-smoking rooms', 'non smoking rooms', 'non-smoking', 'smoke-free property'],
+        'room_service' => ['room service'],
+        'air_conditioning' => ['air conditioning', 'air-conditioning', 'air conditioner'],
+        'bathroom' => ['bathroom', 'private bathroom'],
+        'gym' => ['gym', 'fitness centre', 'fitness center', 'fitness facilities'],
+        'heating' => ['heating'],
+    ];
+
     public function __construct(
         private readonly SupplierEntitlementService $entitlements,
         private readonly RateHawkSearchService $rateHawk,
@@ -17,137 +26,145 @@ final class HotelSearchApplicationService
         private readonly RateHawkPublicHotelProjector $projector,
     ) {}
 
-    public function search(
-        array $params,
-        string $channel,
-        ?string $companyId = null
-    ): array {
+    public function search(array $params, string $channel, ?string $companyId = null): array
+    {
         if (!in_array($channel, ['b2b', 'b2c'], true)) {
             throw new InvalidArgumentException('Unsupported channel.');
         }
-
-        if (
-            $channel === 'b2b'
-            && (!is_string($companyId) || !Str::isUuid($companyId))
-        ) {
-            throw new InvalidArgumentException(
-                'Authenticated company is required.'
-            );
+        if ($channel === 'b2b' && (!is_string($companyId) || !Str::isUuid($companyId))) {
+            throw new InvalidArgumentException('Authenticated company is required.');
         }
 
-        // Display currency is independent of supplier settlement currency.
-        $displayCurrency = strtoupper(
-            trim((string) ($params['currency'] ?? 'USD'))
-        );
-
+        $displayCurrency = strtoupper(trim((string) ($params['currency'] ?? 'USD')));
         if (!in_array($displayCurrency, ['USD', 'EGP', 'SAR'], true)) {
-            throw new InvalidArgumentException(
-                'Unsupported display currency.'
-            );
+            throw new InvalidArgumentException('Unsupported display currency.');
         }
-
         if (!$this->entitlements->isAllowed('RATEHAWK', $channel, 'hotel')) {
-            return $this->failure(
-                'HOTEL_SUPPLIER_UNAVAILABLE',
-                'Hotel search is currently unavailable.'
-            );
+            return $this->failure('HOTEL_SUPPLIER_UNAVAILABLE', 'Hotel search is currently unavailable.');
         }
 
         try {
-            // Always request USD from RateHawk.
-            // Raw supplier prices remain unverified.
-            $supplierResult = $this->rateHawk->searchByGeo(
-                array_merge($params, [
-                    'currency' => 'USD',
-                ])
-            );
+            $supplierResult = $this->rateHawk->searchByGeo(array_merge($params, ['currency' => 'USD']));
         } catch (Throwable $exception) {
             report($exception);
-
-            return $this->failure(
-                'HOTEL_SEARCH_NOT_READY',
-                'Hotel search is temporarily unavailable.'
-            );
+            return $this->failure('HOTEL_SEARCH_NOT_READY', 'Hotel search is temporarily unavailable.');
         }
 
-        // Paginate before content enrichment.
-        $supplierHotels = array_values(
-            array_filter(
-                $supplierResult['hotels'] ?? [],
-                'is_array'
-            )
-        );
+        $supplierHotels = array_values(array_filter($supplierResult['hotels'] ?? [], 'is_array'));
+        $filters = $params['filters'] ?? [];
+        $boards = array_values(array_unique($filters['board'] ?? []));
+        $package = $filters['package_type'] ?? 'all';
+        $stars = array_map('intval', $filters['stars'] ?? []);
+        $amenities = array_values(array_unique($filters['amenities'] ?? []));
+        $name = mb_strtolower(trim((string) ($filters['hotel_name'] ?? '')));
+        $area = mb_strtolower(trim((string) ($filters['area'] ?? '')));
+        $sort = $params['sort'] ?? 'recommended';
+        $needsContent = $name !== '' || $area !== '' || $stars !== [] || $amenities !== [] || $sort !== 'recommended';
 
-        $total = count($supplierHotels);
-        $page = max(1, (int) ($params['page'] ?? 1));
-        $perPage = min(
-            20,
-            max(1, (int) ($params['per_page'] ?? 20))
-        );
-
-        $pageHotels = array_slice(
-            $supplierHotels,
-            ($page - 1) * $perPage,
-            $perPage
-        );
-
-        $hotels = [];
-
-        foreach ($pageHotels as $offset => $hotel) {
-            $rooms = [];
-
+        // Filter supplier rates before pagination. A board/package combination must
+        // exist on the SAME rate; independent hotel-level facets are insufficient.
+        $candidates = [];
+        foreach ($supplierHotels as $hotel) {
+            $matchingRates = [];
             foreach (($hotel['rates'] ?? []) as $rate) {
                 if (!is_array($rate)) {
                     continue;
                 }
+                $rateBoard = self::canonicalBoard((string) ($rate['meal'] ?? ''));
+                $ratePackage = isset($rate['is_package']) && is_bool($rate['is_package'])
+                    ? ($rate['is_package'] ? 'with_package' : 'without_package') : null;
+                if ($boards !== [] && !in_array($rateBoard, $boards, true)) {
+                    continue;
+                }
+                if ($package !== 'all' && $ratePackage !== $package) {
+                    continue;
+                }
+                $matchingRates[] = $rate;
+            }
+            if ($matchingRates === []) {
+                continue;
+            }
+            $hotel['rates'] = $matchingRates;
+            $candidates[] = ['hotel' => $hotel, 'content' => []];
+        }
 
+        // Content-dependent filters must inspect every candidate, not just the page.
+        // This may be expensive on large searches; content service caching is important.
+        if ($needsContent) {
+            $filtered = [];
+            foreach ($candidates as $candidate) {
+                $hid = $candidate['hotel']['hid'] ?? null;
+                if (!self::validHid($hid)) {
+                    continue;
+                }
                 try {
-                    $rooms[] = $this->normalizer->publicPreview(
-                        $this->normalizer->normalize($rate)
-                    );
+                    $content = $this->content->getHotel($hid, (string) ($params['language'] ?? 'en'));
+                    if (!is_array($content)) {
+                        continue;
+                    }
+                } catch (Throwable $exception) {
+                    report($exception);
+                    continue;
+                }
+                if ($name !== '' && !str_contains(mb_strtolower((string) ($content['name'] ?? '')), $name)) {
+                    continue;
+                }
+                if ($area !== '' && !str_contains(mb_strtolower((string) ($content['address'] ?? '')), $area)) {
+                    continue;
+                }
+                $hotelStars = is_numeric($content['star_rating'] ?? null)
+                    ? (float) $content['star_rating'] : null;
+                if ($stars !== [] && ($hotelStars === null || !in_array($hotelStars, $stars, false))) {
+                    continue;
+                }
+                if ($amenities !== [] && !self::matchesAmenities($content, $amenities)) {
+                    continue;
+                }
+                $candidate['content'] = $content;
+                $filtered[] = $candidate;
+            }
+            $candidates = $filtered;
+            if ($sort === 'stars_desc') {
+                usort($candidates, static fn (array $a, array $b): int =>
+                    ((float) ($b['content']['star_rating'] ?? -1)) <=> ((float) ($a['content']['star_rating'] ?? -1)));
+            } elseif ($sort === 'name_asc') {
+                usort($candidates, static fn (array $a, array $b): int =>
+                    strcasecmp((string) ($a['content']['name'] ?? ''), (string) ($b['content']['name'] ?? '')));
+            }
+        }
+
+        $total = count($candidates);
+        $page = max(1, (int) ($params['page'] ?? 1));
+        $perPage = min(20, max(1, (int) ($params['per_page'] ?? 20)));
+        $start = ($page - 1) * $perPage;
+        $pageCandidates = array_slice($candidates, $start, $perPage);
+        $hotels = [];
+
+        foreach ($pageCandidates as $offset => $candidate) {
+            $hotel = $candidate['hotel'];
+            $rooms = [];
+            foreach (($hotel['rates'] ?? []) as $rate) {
+                try {
+                    $rooms[] = $this->normalizer->publicPreview($this->normalizer->normalize($rate));
                 } catch (Throwable $exception) {
                     report($exception);
                 }
             }
 
-            $content = [];
-
-            // Real RateHawk hotel ID from the supplier search result.
+            $content = $candidate['content'];
             $hid = $hotel['hid'] ?? null;
-
-            // Enrich at most five hotels per page.
-            if (
-                count($hotels) < 5
-                && (is_int($hid) || is_string($hid))
-                && ctype_digit((string) $hid)
-            ) {
+            // Preserve the previous maximum of five content enrichments per page
+            // when no content-dependent filter or sort was requested.
+            if (!$needsContent && $offset < 5 && self::validHid($hid)) {
                 try {
-                    $content = $this->content->getHotel(
-                        $hid,
-                        (string) ($params['language'] ?? 'en')
-                    );
+                    $loaded = $this->content->getHotel($hid, (string) ($params['language'] ?? 'en'));
+                    $content = is_array($loaded) ? $loaded : [];
                 } catch (Throwable $exception) {
                     report($exception);
                 }
             }
-
-            // Preserve all existing projected hotel fields.
-            $preview = $this->projector->preview(
-                $page * $perPage - $perPage + $offset,
-                $rooms,
-                $content
-            );
-
-            // Expose the real supplier HID for Rooms Integration.
-            // Never use a generated or internal hotel ID here.
-            $preview['hid'] = (
-                (is_int($hid) || is_string($hid))
-                && ctype_digit((string) $hid)
-                && (int) $hid > 0
-            )
-                ? (int) $hid
-                : null;
-
+            $preview = $this->projector->preview($start + $offset, $rooms, $content);
+            $preview['hid'] = self::validHid($hid) ? (int) $hid : null;
             $hotels[] = $preview;
         }
 
@@ -168,18 +185,63 @@ final class HotelSearchApplicationService
         ];
     }
 
-    private function failure(
-        string $code,
-        string $message
-    ): array {
+    private static function validHid(mixed $hid): bool
+    {
+        return (is_int($hid) || is_string($hid))
+            && ctype_digit((string) $hid)
+            && (int) $hid > 0;
+    }
+
+    private static function canonicalBoard(string $value): string
+    {
+        $value = strtolower(trim($value));
+        return match (str_replace(['_', '-', ' '], '', $value)) {
+            'nomeal', 'roomonly', 'ro' => 'nomeal',
+            'breakfast', 'bedandbreakfast', 'bb' => 'breakfast',
+            'halfboard', 'hb' => 'half-board',
+            'fullboard', 'fb' => 'full-board',
+            'allinclusive', 'ai' => 'all-inclusive',
+            'ultraallinclusive', 'uai' => 'ultra-all-inclusive',
+            default => $value,
+        };
+    }
+
+    private static function matchesAmenities(array $content, array $selected): bool
+    {
+        $actual = [];
+        foreach (($content['amenity_groups'] ?? []) as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+            foreach (($group['amenities'] ?? []) as $amenity) {
+                if (is_string($amenity)) {
+                    $actual[] = mb_strtolower(trim($amenity));
+                }
+            }
+        }
+        foreach ($selected as $code) {
+            $aliases = self::AMENITIES[$code] ?? [];
+            $found = false;
+            foreach ($aliases as $alias) {
+                if (in_array($alias, $actual, true)) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private function failure(string $code, string $message): array
+    {
         return [
             'success' => false,
             'code' => $code,
             'message' => $message,
-            'data' => [
-                'hotels' => [],
-                'total' => 0,
-            ],
+            'data' => ['hotels' => [], 'total' => 0],
         ];
     }
 }

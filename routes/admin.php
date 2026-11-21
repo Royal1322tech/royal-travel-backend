@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\LoyaltyController;
 
 use App\Http\Controllers\Admin\AdminCompanyController;
 use App\Http\Controllers\Admin\AdminRoleManagementController;
@@ -77,6 +78,22 @@ Route::prefix('admin')
             ])
                 ->middleware('admin.permission:bookings.view')
                 ->name('bookings.index');
+
+            /* Price reduction request administration. */
+            Route::get('/price-reduction-requests',
+                [\App\Http\Controllers\Admin\PriceReductionRequestController::class,'index'])
+                ->middleware('admin.permission:price_requests.view')
+                ->name('price-reduction.index');
+            Route::patch('/price-reduction-requests/{id}',
+                [\App\Http\Controllers\Admin\PriceReductionRequestController::class,'update'])
+                ->whereUuid('id')
+                ->middleware('admin.permission:price_requests.manage')
+                ->name('price-reduction.update');
+            Route::get('/price-reduction-requests/{id}/attachment',
+                [\App\Http\Controllers\Admin\PriceReductionRequestController::class,'attachment'])
+                ->whereUuid('id')
+                ->middleware('admin.permission:price_requests.view')
+                ->name('price-reduction.attachment');
 
             /*
             |--------------------------------------------------------------------------
@@ -220,6 +237,14 @@ Route::get(
             | Pricing & Commissions
             |--------------------------------------------------------------------------
             */
+
+            // B2B loyalty management (independent of payment and wallet)
+            Route::get('/loyalty', [LoyaltyController::class, 'index'])
+                ->middleware('admin.permission:loyalty.view')->name('loyalty.index');
+            Route::post('/loyalty/rules', [LoyaltyController::class, 'saveRule'])
+                ->middleware(['admin.permission:loyalty.manage', 'throttle:10,1'])->name('loyalty.rules.save');
+            Route::post('/loyalty/adjust', [LoyaltyController::class, 'adjust'])
+                ->middleware(['admin.permission:loyalty.manage', 'throttle:10,1'])->name('loyalty.adjust');
 
             Route::get('/pricing', [
                 PricingController::class,
