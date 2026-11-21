@@ -16,8 +16,8 @@ class HotelSearchRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        // Do not silently replace user-supplied values.
-        // Normalize only the supported text codes.
+        // Normalize only supported text codes.
+        // Preserve all other user-supplied values.
         $normalized = [];
 
         foreach (['residency', 'language', 'currency'] as $field) {
@@ -48,7 +48,6 @@ class HotelSearchRequest extends FormRequest
                 'after:checkin',
             ],
 
-            // Geographic search (initial implementation).
             'latitude' => [
                 'required',
                 'numeric',
@@ -79,7 +78,8 @@ class HotelSearchRequest extends FormRequest
                 Rule::in(['en', 'ar']),
             ],
 
-            // Display currency only. Supplier requests remain in USD; no public prices until verified.
+            // Display currency only.
+            // Supplier requests remain in USD.
             'currency' => [
                 'sometimes',
                 Rule::in(['USD', 'EGP', 'SAR']),
@@ -116,23 +116,37 @@ class HotelSearchRequest extends FormRequest
                 'between:0,17',
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Hotel Search Filters
+            |--------------------------------------------------------------------------
+            | These filters are shared by B2B and B2C search.
+            | They must be applied by HotelSearchApplicationService
+            | before pagination.
+            */
+
             'filters' => [
                 'sometimes',
                 'array:hotel_name,area,stars,board,amenities,package_type',
             ],
 
+            // Hotel Name
             'filters.hotel_name' => [
                 'sometimes',
+                'nullable',
                 'string',
                 'max:120',
             ],
 
+            // Area / Location
             'filters.area' => [
                 'sometimes',
+                'nullable',
                 'string',
                 'max:120',
             ],
 
+            // Star Category: 1 to 5 stars
             'filters.stars' => [
                 'sometimes',
                 'array',
@@ -140,10 +154,13 @@ class HotelSearchRequest extends FormRequest
             ],
 
             'filters.stars.*' => [
+                'required',
                 'integer',
+                'distinct',
                 Rule::in([1, 2, 3, 4, 5]),
             ],
 
+            // Board / Meal Plan
             'filters.board' => [
                 'sometimes',
                 'array',
@@ -151,7 +168,9 @@ class HotelSearchRequest extends FormRequest
             ],
 
             'filters.board.*' => [
+                'required',
                 'string',
+                'distinct',
                 Rule::in([
                     'nomeal',
                     'breakfast',
@@ -162,6 +181,7 @@ class HotelSearchRequest extends FormRequest
                 ]),
             ],
 
+            // Hotel-level amenities
             'filters.amenities' => [
                 'sometimes',
                 'array',
@@ -169,7 +189,9 @@ class HotelSearchRequest extends FormRequest
             ],
 
             'filters.amenities.*' => [
+                'required',
                 'string',
+                'distinct',
                 Rule::in([
                     'non_smoking',
                     'room_service',
@@ -180,6 +202,7 @@ class HotelSearchRequest extends FormRequest
                 ]),
             ],
 
+            // Product Packaging
             'filters.package_type' => [
                 'sometimes',
                 Rule::in([
@@ -189,6 +212,7 @@ class HotelSearchRequest extends FormRequest
                 ]),
             ],
 
+            // Sorting
             'sort' => [
                 'sometimes',
                 Rule::in([
@@ -198,6 +222,7 @@ class HotelSearchRequest extends FormRequest
                 ]),
             ],
 
+            // Pagination
             'page' => [
                 'sometimes',
                 'integer',

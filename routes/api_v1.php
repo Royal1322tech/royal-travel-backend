@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Http\Request;
+use App\Http\Controllers\Api\V1\B2B\LoyaltyWalletController;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\V1\B2B\Auth\B2BLoginController;
@@ -8,10 +9,8 @@ use App\Http\Controllers\Api\V1\B2B\Auth\CompanyRegistrationController;
 use App\Http\Controllers\Api\V1\B2B\Auth\CompanyEmailVerificationController;
 use App\Http\Controllers\Api\V1\B2B\B2BProfileController;
 use App\Http\Controllers\Api\V1\B2B\Hotels\TopRatedController;
-
 use App\Http\Controllers\Api\V1\B2B\Hotels\HotelSearchController as B2BHotelSearchController;
 use App\Http\Controllers\Api\V1\B2C\Hotels\HotelSearchController as B2CHotelSearchController;
-
 use App\Http\Controllers\Api\V1\B2B\Hotels\HotelRoomsApiController;
 use App\Http\Controllers\Api\V1\B2B\Bookings\BookingDraftController;
 
@@ -254,3 +253,17 @@ Route::prefix('b2b/bookings')
             'store',
         ])->name('draft');
     });
+
+/* Price reduction requests: B2B authenticated, tenant-scoped. */
+Route::prefix('b2b/price-reduction-requests')
+    ->name('api.v1.b2b.price-reduction.')
+    ->middleware(['auth:sanctum','b2b.api.permission:hotels.view','throttle:10,1'])
+    ->group(function (): void {
+        Route::get('/', [\App\Http\Controllers\Api\V1\B2B\Hotels\PriceReductionRequestController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\Api\V1\B2B\Hotels\PriceReductionRequestController::class, 'store'])->name('store');
+    });
+
+// B2B company loyalty wallet: read-only, no redemption.
+Route::get('/b2b/loyalty', [LoyaltyWalletController::class, 'index'])
+    ->middleware(['auth:sanctum', 'b2b.api.permission:dashboard.view', 'throttle:20,1'])
+    ->name('api.v1.b2b.loyalty.index');
