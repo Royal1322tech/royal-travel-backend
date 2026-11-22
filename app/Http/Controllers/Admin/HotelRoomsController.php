@@ -986,7 +986,36 @@ public function prebook(
             'priceChanged' => $prebook['price_changed'] === true,
             'cancellationPolicy' => $cancellationPolicy,
             'priceReview' => $priceReview,
+            'token' => $token,
+            'companies' => \App\Modules\Identity\Models\Company::query()->orderBy('id')->get(),
+            'roomOccupancies' => is_array($search['guests'] ?? null) ? $search['guests'] : [],
             'bookingEnabled' => false,
         ]);
     }
+    /** Save a local draft only; never invokes supplier booking or wallet operations. */
+    public function saveDraft(Request $request, string $token, \App\Services\Bookings\AdminHotelBookingDraftService $service)
+    {
+        abort_unless(preg_match('/^[a-f0-9]{48}$/D', $token) === 1, 404);
+        $validated = $request->validate([
+            'company_id' => ['nullable', 'uuid', 'exists:rt_companies,id'],
+            'customer_mode' => ['required', 'in:existing,new'],
+            'customer_id' => ['required_if:customer_mode,existing', 'nullable', 'uuid'],
+            'customer' => ['required_if:customer_mode,new', 'nullable', 'array'],
+            'customer.first_name' => ['required_if:customer_mode,new', 'nullable', 'string', 'max:100'],
+            'customer.last_name' => ['required_if:customer_mode,new', 'nullable', 'string', 'max:100'],
+            'customer.email' => ['nullable', 'email', 'max:254'],
+            'customer.phone' => ['nullable', 'string', 'max:35'],
+            'rooms' => ['required', 'array', 'min:1', 'max:8'],
+            'rooms.*.guests' => ['required', 'array', 'min:1', 'max:20'],
+            'rooms.*.guests.*.first_name' => ['required', 'string', 'max:50'],
+            'rooms.*.guests.*.last_name' => ['required', 'string', 'max:50'],
+            'contact_email' => ['required', 'email', 'max:254'],
+            'contact_phone' => ['required', 'string', 'max:35'],
+            'accept_terms' => ['accepted'],
+        ]);
+        $result = $service->create((int) $request->user()->getAuthIdentifier(), $token, $request->session()->getId(), $validated);
+        return redirect()->route('admin.hotels.rooms.review', ['token' => $token])
+            ->with('draft_saved', $result);
+    }
+
 }

@@ -267,3 +267,16 @@ Route::prefix('b2b/price-reduction-requests')
 Route::get('/b2b/loyalty', [LoyaltyWalletController::class, 'index'])
     ->middleware(['auth:sanctum', 'b2b.api.permission:dashboard.view', 'throttle:20,1'])
     ->name('api.v1.b2b.loyalty.index');
+
+// Read-only B2B financial account: authenticated and company-scoped inside controller.
+Route::get('/b2b/finance', [\App\Http\Controllers\Api\V1\B2B\B2BFinanceController::class,'show'])
+    ->middleware(['auth:sanctum','throttle:30,1'])->name('api.v1.b2b.finance.show');
+
+// Customer directory. Company scope is resolved server-side, never from request input.
+Route::prefix('b2b/customers')
+    ->name('api.v1.b2b.customers.')
+    ->middleware(['auth:sanctum', 'b2b.api.permission:hotels.view', 'throttle:20,1'])
+    ->group(function (): void {
+        Route::get('/', [\App\Http\Controllers\Api\V1\B2B\Customers\CustomerController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\Api\V1\B2B\Customers\CustomerController::class, 'store'])->name('store');
+    });

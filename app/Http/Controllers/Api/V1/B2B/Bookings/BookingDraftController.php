@@ -22,6 +22,12 @@ final class BookingDraftController extends Controller
 
         $data = $request->validate([
             'review_token' => ['required', 'string', 'regex:/^[a-f0-9]{48}$/D'],
+            'customer_id' => ['required_without:customer', 'nullable', 'uuid', 'prohibits:customer'],
+            'customer' => ['required_without:customer_id', 'nullable', 'array', 'prohibits:customer_id'],
+            'customer.first_name' => ['required_with:customer', 'string', 'max:100'],
+            'customer.last_name' => ['required_with:customer', 'string', 'max:100'],
+            'customer.email' => ['nullable', 'email', 'max:254'],
+            'customer.phone' => ['nullable', 'string', 'max:35'],
             'guests' => ['required', 'array', 'min:1', 'max:64'],
             'guests.*.first_name' => ['required', 'string', 'max:100'],
             'guests.*.last_name' => ['required', 'string', 'max:100'],
