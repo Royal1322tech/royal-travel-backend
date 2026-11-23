@@ -91,19 +91,28 @@ final class HotelSearchApplicationService
         // Content-dependent filters must inspect every candidate, not just the page.
         // This may be expensive on large searches; content service caching is important.
         if ($needsContent) {
+            // Stars and amenities don't depend on the language, so they are checked against one
+            // shared (English) content cache: the same search gives the same hotels in every
+            // language. Names and addresses are matched, and sorted, in the requested language.
+            $contentLanguage = ($name !== '' || $area !== '' || $sort === 'name_asc')
+                ? (string) ($params['language'] ?? 'en')
+                : 'en';
             $filtered = [];
+            $unavailable = 0;
             foreach ($candidates as $candidate) {
                 $hid = $candidate['hotel']['hid'] ?? null;
                 if (!self::validHid($hid)) {
                     continue;
                 }
                 try {
-                    $content = $this->content->getHotel($hid, (string) ($params['language'] ?? 'en'));
-                    if (!is_array($content)) {
-                        continue;
-                    }
+                    $content = $this->content->getHotel($hid, $contentLanguage);
                 } catch (Throwable $exception) {
                     report($exception);
+                    $content = null;
+                }
+                if (!is_array($content)) {
+                    // Never drop a hotel silently: a partial filtered result would show a wrong total.
+                    $unavailable++;
                     continue;
                 }
                 if ($name !== '' && !str_contains(mb_strtolower((string) ($content['name'] ?? '')), $name)) {
@@ -122,6 +131,12 @@ final class HotelSearchApplicationService
                 }
                 $candidate['content'] = $content;
                 $filtered[] = $candidate;
+            }
+            if ($unavailable > 0) {
+                return $this->failure(
+                    'HOTEL_SEARCH_NOT_READY',
+                    'Hotel details are still loading. Please try again shortly.'
+                );
             }
             $candidates = $filtered;
             if ($sort === 'stars_desc') {
@@ -155,10 +170,13 @@ final class HotelSearchApplicationService
             $hid = $hotel['hid'] ?? null;
             // Preserve the previous maximum of five content enrichments per page
             // when no content-dependent filter or sort was requested.
-            if (!$needsContent && $offset < 5 && self::validHid($hid)) {
+            $displayLanguage = (string) ($params['language'] ?? 'en');
+            // Filtered on the shared English details: show this page's hotels in the requested language.
+            $relocalize = $needsContent && isset($contentLanguage) && $contentLanguage !== $displayLanguage;
+            if (((!$needsContent && $offset < 5) || $relocalize) && self::validHid($hid)) {
                 try {
-                    $loaded = $this->content->getHotel($hid, (string) ($params['language'] ?? 'en'));
-                    $content = is_array($loaded) ? $loaded : [];
+                    $loaded = $this->content->getHotel($hid, $displayLanguage);
+                    $content = is_array($loaded) ? $loaded : $content;
                 } catch (Throwable $exception) {
                     report($exception);
                 }
