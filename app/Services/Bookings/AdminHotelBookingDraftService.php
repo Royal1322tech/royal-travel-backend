@@ -183,6 +183,7 @@ final class AdminHotelBookingDraftService
 
             // Diagnostic metadata only: no guest details, supplier references or prices.
             Log::warning('Admin hotel draft supplier price verification failed', [
+                'reason' => is_array($supplierPrice) ? ($supplierPrice['reason'] ?? null) : 'supplier_data_missing',
                 'supplier_present' => is_array($normalized['supplier'] ?? null),
                 'payment_options_count' => count($payments),
                 'payment_type' => $payment['type'] ?? null,
