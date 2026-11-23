@@ -26,7 +26,7 @@ final class FxConversionService
             ->where('rate_type','reference')->where('effective_at','<=',now())
             ->where('expires_at','>',now())->orderByDesc('effective_at')->orderByDesc('recorded_at')->first();
         if (!$rate) {
-            throw new RuntimeException('A current exchange rate is unavailable.');
+            throw new FxRateUnavailableException('A current exchange rate is unavailable.');
         }
         $reference = (string)$rate->rate;
         $adjustment = DB::table('rt_fx_adjustments')

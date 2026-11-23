@@ -890,6 +890,11 @@ public function prebook(
         $supplierPrice = app(\App\Services\Hotels\RateHawkPriceResolver::class)
             ->resolve($normalizedPrebookRate);
 
+        // Internal reason code for staff (admin page only; never in a public API).
+        $priceReview['reason'] = is_array($supplierPrice)
+            ? ($supplierPrice['reason'] ?? null)
+            : 'supplier_data_missing';
+
         if (is_array($supplierPrice) && ($supplierPrice['pricing_verified'] ?? false) === true) {
             try {
                 $quote = app(\App\Services\Pricing\HotelCurrencyQuoteService::class)
@@ -902,6 +907,11 @@ public function prebook(
                 ];
             } catch (\Throwable $exception) {
                 report($exception);
+                $priceReview['reason'] = match (true) {
+                    $exception instanceof \App\Services\Pricing\PricingNotConfiguredException => 'pricing_policy_missing',
+                    $exception instanceof \App\Services\Pricing\FxRateUnavailableException => 'fx_rate_unavailable',
+                    default => 'pricing_error',
+                };
             }
         }
 

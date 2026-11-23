@@ -122,6 +122,9 @@
                 <p class="mt-2 text-base font-semibold text-amber-800">
                     Price on request
                 </p>
+                @if (!empty($priceReview['reason']))
+                    <p class="mt-1 text-xs text-slate-500">Internal reason: {{ str_replace('_', ' ', $priceReview['reason']) }}</p>
+                @endif
                 <p class="mt-2 text-xs text-slate-500">
                     Final price is unavailable until supplier total, taxes and fees are verified.
                     No booking or payment has been made.
