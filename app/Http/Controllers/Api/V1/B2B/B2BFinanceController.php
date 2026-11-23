@@ -4,24 +4,42 @@ namespace App\Http\Controllers\Api\V1\B2B;
 
 use App\Http\Controllers\Controller;
 use App\Services\Finance\B2BFinanceService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Laravel\Sanctum\PersonalAccessToken;
 
-final class B2BFinanceController extends Controller {
-    public function show(Request $request,B2BFinanceService $finance) {
-        $user=$request->user(); $token=$user?->currentAccessToken();
-        if (!$token instanceof PersonalAccessToken || !$token->can('b2b:access')) return response()->json(['message'=>'Forbidden'],403);
-        $scopes=collect($token->abilities ?? [])->filter(fn($s)=>is_string($s)&&str_starts_with($s,'company:'))->values();
-        if ($scopes->count()!==1) return response()->json(['message'=>'Invalid company scope'],403);
-        $companyId=substr($scopes[0],8);
-        if (!Str::isUuid($companyId)) return response()->json(['message'=>'Invalid company scope'],403);
-        $active=DB::table('rt_company_memberships')->join('rt_companies','rt_companies.id','=','rt_company_memberships.company_id')
-            ->where('rt_company_memberships.user_id',$user->id)->where('rt_company_memberships.company_id',$companyId)
-            ->where('rt_company_memberships.status','active')->whereNotNull('rt_company_memberships.approved_at')
-            ->where('rt_companies.status','approved')->exists();
-        if (!$active) return response()->json(['message'=>'Company access denied'],403);
-        return response()->json(['account'=>$finance->snapshot($companyId),'entries'=>$finance->entries($companyId)]);
+/**
+ * Read-only B2B financial account (wallet and credit) for the authenticated company.
+ *
+ * Token scope, active approved membership and the payments.view permission are enforced by the
+ * b2b.api.permission middleware, which also resolves the company. Entries are returned with a fixed
+ * set of fields: the staff actor is never exposed.
+ */
+final class B2BFinanceController extends Controller
+{
+    public function show(Request $request, B2BFinanceService $finance): JsonResponse
+    {
+        abort_unless($request->user() !== null, 401, 'Unauthenticated.');
+        $companyId = $request->attributes->get('authenticated_company_id');
+        abort_unless(is_string($companyId) && Str::isUuid($companyId), 403, 'Invalid company context.');
+        $companyId = strtolower($companyId);
+
+        $entries = collect($finance->entries($companyId))->map(fn ($entry) => [
+            'id' => $entry->id,
+            'type' => $entry->type,
+            'amount_cents' => $entry->amount_cents === null ? null : (int) $entry->amount_cents,
+            'wallet_after_cents' => (int) $entry->wallet_after_cents,
+            'limit_after_cents' => (int) $entry->limit_after_cents,
+            'used_after_cents' => (int) $entry->used_after_cents,
+            'frozen_after' => (bool) $entry->frozen_after,
+            'reference' => $entry->reference,
+            'reason' => $entry->reason,
+            'created_at' => $entry->created_at,
+        ])->values();
+
+        return response()->json([
+            'account' => $finance->snapshot($companyId),
+            'entries' => $entries,
+        ])->header('Cache-Control', 'no-store');
     }
 }
