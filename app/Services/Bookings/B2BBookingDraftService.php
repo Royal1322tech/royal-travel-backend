@@ -3,6 +3,7 @@
 namespace App\Services\Bookings;
 
 use Illuminate\Support\Facades\Cache;
+use App\Services\Bookings\CustomerDirectoryService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -12,6 +13,10 @@ final class B2BBookingDraftService
 {
     public function create(int $userId, string $companyId, array $data, string $idempotencyKey): array
     {
+        // A customer is a beneficiary, never the authenticated employee.
+        if (empty($data['customer_id']) === empty($data['customer'])) {
+            throw ValidationException::withMessages(['customer_id' => 'Select an existing customer or provide a new customer.']);
+        }
         $reviewToken = $data['review_token'];
         $cacheKey = 'b2b_ratehawk_review:' . hash('sha256', $reviewToken);
         $review = Cache::get($cacheKey);
@@ -83,6 +88,8 @@ final class B2BBookingDraftService
         $requestHash = hash('sha256', json_encode([
             'review_token' => $reviewToken,
             'guests' => $data['guests'],
+            'customer_id' => $data['customer_id'] ?? null,
+            'customer' => $data['customer'] ?? null,
         ], JSON_THROW_ON_ERROR));
 
         return DB::transaction(function () use ($userId, $companyId, $data, $scope, $keyHash, $requestHash, $search, $price, $currency, $total, $offerRef, $rooms) {
@@ -110,6 +117,14 @@ final class B2BBookingDraftService
                 throw new HttpException(409, 'This request cannot be retried with the same key.');
             }
 
+            // Resolve customer only after the idempotency row is locked; replay
+            // must not create another customer record.
+            $directory = app(CustomerDirectoryService::class);
+            $customer = !empty($data['customer_id'])
+                ? $directory->findForBooking($data['customer_id'], $companyId)
+                : $directory->create($companyId, $userId, $data['customer']);
+            $customerId = (string) $customer->getKey();
+
             $orderId = (string) Str::uuid();
             $bookingId = (string) Str::uuid();
             $now = now();
@@ -118,14 +133,14 @@ final class B2BBookingDraftService
 
             DB::table('rt_orders')->insert([
                 'id' => $orderId, 'order_no' => $orderNo, 'channel' => 'b2b',
-                'company_id' => $companyId, 'customer_user_id' => $userId,
+                'company_id' => $companyId, 'customer_id' => $customerId, 'customer_user_id' => null,
                 'created_by' => $userId, 'status' => 'draft', 'currency' => $currency,
                 'created_at' => $now, 'updated_at' => $now,
             ]);
             DB::table('rt_bookings')->insert([
                 'id' => $bookingId, 'order_id' => $orderId, 'booking_no' => $bookingNo,
                 'service_type' => 'hotel', 'channel' => 'b2b', 'company_id' => $companyId,
-                'customer_user_id' => $userId, 'status' => 'draft', 'currency' => $currency,
+                'customer_id' => $customerId, 'customer_user_id' => null, 'status' => 'draft', 'currency' => $currency,
                 'approved_total' => null, 'version' => 1,
                 'created_at' => $now, 'updated_at' => $now,
             ]);
@@ -155,6 +170,7 @@ final class B2BBookingDraftService
                 'customer_total' => $total, 'created_at' => $now,
             ]);
             $response = [
+                'customer_id' => $customerId,
                 'order_id' => $orderId, 'order_no' => $orderNo,
                 'booking_id' => $bookingId, 'booking_no' => $bookingNo,
                 'status' => 'draft', 'currency' => $currency, 'customer_total' => $total,

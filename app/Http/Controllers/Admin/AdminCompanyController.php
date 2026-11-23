@@ -116,8 +116,12 @@ public function index(Request $request): View
             )
             ->get();
 
+        $finance = app(\App\Services\Finance\B2BFinanceService::class);
+        $financeAccount = $finance->snapshot($company->id);
+        $financeEntries = $finance->entries($company->id);
+
         return view('admin.companies.show', compact(
-            'company',
+            'financeAccount', 'financeEntries', 'company',
             'contacts',
             'members'
         ));

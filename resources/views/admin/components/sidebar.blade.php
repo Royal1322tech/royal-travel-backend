@@ -16,6 +16,7 @@
         ],
 
         'FINANCE' => [
+            ['Company Finance', 'admin.companies.index', 'companies.view', 'companies', '▣'],
             ['Pricing & Commissions', 'admin.pricing.index', 'pricing.royal.manage', 'pricing', '◈'],
             ['Exchange Rates', 'admin.exchange-rates.index', 'fx.view', 'exchange-rates', '⇄'],
             ['Loyalty Points', 'admin.loyalty.index', 'loyalty.view', 'loyalty', '★'],
@@ -62,6 +63,19 @@
                             $active =
                                 request()->is('admin/' . $item[3])
                                 || request()->is('admin/' . $item[3] . '/*');
+
+                            $isCompanyFinance = $item[0] === 'Company Finance';
+
+                            if ($isCompanyFinance) {
+                                $active = request()->routeIs(
+                                    'admin.companies.finance.*'
+                                );
+                            } elseif ($item[1] === 'admin.companies.index') {
+                                $active = $active
+                                    && !request()->routeIs(
+                                        'admin.companies.finance.*'
+                                    );
+                            }
                         @endphp
 
                         <a

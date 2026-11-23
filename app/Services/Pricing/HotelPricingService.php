@@ -296,7 +296,7 @@ final class HotelPricingService
             $royal = $this->activeRule('royal_direct');
 
             if (!$royal) {
-                throw new RuntimeException(
+                throw new PricingNotConfiguredException(
                     'Royal direct pricing is not configured.'
                 );
             }
@@ -335,7 +335,7 @@ final class HotelPricingService
         );
 
         if (!$royal || !$company) {
-            throw new RuntimeException(
+            throw new PricingNotConfiguredException(
                 'Company pricing is not configured.'
             );
         }

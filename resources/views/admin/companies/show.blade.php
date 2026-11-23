@@ -35,6 +35,37 @@
 </head>
 <body>
 <div class="container">
+
+<section class="card">
+    <h2>B2B Finance — USD</h2>
+    <div class="grid">
+        <div class="item"><span>Wallet</span><strong>${{ number_format($financeAccount['wallet_cents']/100,2) }}</strong></div>
+        <div class="item"><span>Credit limit</span><strong>${{ number_format($financeAccount['credit_limit_cents']/100,2) }}</strong></div>
+        <div class="item"><span>Credit used</span><strong>${{ number_format($financeAccount['credit_used_cents']/100,2) }}</strong></div>
+        <div class="item"><span>Credit available</span><strong>${{ number_format($financeAccount['credit_available_cents']/100,2) }}</strong></div>
+    </div>
+    <p class="muted">Credit status: {{ $financeAccount['credit_frozen'] ? 'Frozen' : 'Active' }}</p>
+    @if(app(\App\Modules\Identity\Services\PermissionService::class)->adminCan(auth()->user(),'companies.manage'))
+    <p class="muted">Financial operations require authorized admin access. Every operation needs a unique reference and a reason.</p>
+    <form method="POST" action="{{ route('admin.companies.finance.update',$company->id) }}">
+        @csrf
+        <div class="grid">
+            <label>Operation<select name="type" required style="width:100%;padding:10px"><option value="wallet_topup">Top up wallet</option><option value="set_credit_limit">Set credit limit</option><option value="credit_settlement">Record credit repayment</option><option value="credit_freeze">Freeze credit</option><option value="credit_unfreeze">Unfreeze credit</option></select></label>
+            <label>Amount (USD; leave blank for freeze)<input name="amount" inputmode="decimal" placeholder="100.00" style="width:100%;padding:10px"></label>
+            <label>Unique transaction reference<input name="reference" required maxlength="100" style="width:100%;padding:10px"></label>
+            <label>Reason<input name="reason" required minlength="5" maxlength="2000" style="width:100%;padding:10px"></label>
+        </div>
+        <p><button class="btn primary" type="submit">Record financial operation</button></p>
+    </form>
+    @endif
+    @if($errors->any())<div class="alert" style="background:#fff1f2;color:#9f1239">{{ $errors->first() }}</div>@endif
+    <h2>Recent ledger entries</h2>
+    <div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Operation</th><th>Amount (USD)</th><th>Reference</th><th>Reason</th></tr></thead><tbody>
+    @forelse($financeEntries as $entry)<tr><td>{{ $entry->created_at }}</td><td>{{ $entry->type }}</td><td>{{ $entry->amount_cents === null ? '—' : number_format($entry->amount_cents/100,2) }}</td><td>{{ $entry->reference }}</td><td>{{ $entry->reason }}</td></tr>
+    @empty<tr><td colspan="5">No financial transactions yet.</td></tr>@endforelse
+    </tbody></table></div>
+</section>
+
     <div class="header">
         <div>
             <a class="muted" href="{{ route('admin.companies.index') }}">

@@ -29,6 +29,11 @@ class Booking extends RoyalModel
         return $this->belongsTo(\App\Modules\Identity\Models\Company::class, 'company_id', 'id');
     }
 
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Identity\Models\Customer::class, 'customer_id', 'id');
+    }
+
     public function customer_user(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'customer_user_id', 'id');

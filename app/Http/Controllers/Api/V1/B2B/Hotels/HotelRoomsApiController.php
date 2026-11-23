@@ -7,6 +7,8 @@ use App\Services\Hotels\RateHawkHotelpageService;
 use App\Services\Hotels\RateHawkPrebookService;
 use App\Services\Hotels\RateHawkRateNormalizer;
 use App\Services\Hotels\RateHawkPriceResolver;
+use App\Services\Pricing\FxRateUnavailableException;
+use App\Services\Pricing\PricingNotConfiguredException;
 use App\Services\Pricing\HotelCurrencyQuoteService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -114,6 +116,13 @@ final class HotelRoomsApiController extends Controller
                 || ($resolved['pricing_verified'] ?? false) !== true
                 || !isset($resolved['amount'])
             ) {
+                // Internal diagnostic only: a reason code, never supplier amounts or hashes.
+                Log::info('B2B hotel rate not verified', [
+                    'reason' => is_array($resolved)
+                        ? ($resolved['reason'] ?? 'unverified')
+                        : 'supplier_data_missing',
+                ]);
+
                 return $unavailable;
             }
 
@@ -144,10 +153,19 @@ final class HotelRoomsApiController extends Controller
                     $quote['agency_purchase_price'],
                 'currency' => $quote['currency'],
                 'price_on_request' => false,
+                // Charged by the property at the stay, not included in the prices above.
+                'taxes_at_property' => array_values(
+                    $resolved['taxes_at_property'] ?? []
+                ),
             ];
 
         } catch (Throwable $e) {
             Log::warning('B2B hotel pricing unavailable', [
+                'reason' => match (true) {
+                    $e instanceof PricingNotConfiguredException => 'pricing_policy_missing',
+                    $e instanceof FxRateUnavailableException => 'fx_rate_unavailable',
+                    default => 'pricing_error',
+                },
                 'exception' => get_class($e),
             ]);
 

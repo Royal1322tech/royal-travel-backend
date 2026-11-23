@@ -101,6 +101,12 @@ Route::prefix('admin')
             |--------------------------------------------------------------------------
             */
 
+            // End customers: company_id omitted selects direct Royal Travel customers.
+            Route::get('/customers', [\App\Http\Controllers\Admin\CustomerController::class, 'index'])
+                ->middleware('admin.permission:bookings.view')->name('customers.index');
+            Route::post('/customers', [\App\Http\Controllers\Admin\CustomerController::class, 'store'])
+                ->middleware(['admin.permission:bookings.manage', 'throttle:20,1'])->name('customers.store');
+
             Route::get('/suppliers', [
                 SupplierController::class,
                 'index',
@@ -151,6 +157,9 @@ Route::prefix('admin')
             ])
                 ->middleware('admin.permission:companies.create')
                 ->name('companies.store');
+
+            Route::post('/companies/{company}/finance', [\App\Http\Controllers\Admin\B2BFinanceController::class,'update'])
+                ->middleware('admin.permission:companies.manage')->name('companies.finance.update');
 
             Route::get('/companies/{company}', [
                 AdminCompanyController::class,
@@ -230,6 +239,30 @@ Route::get(
 )
     ->middleware('admin.permission:hotels.view')
     ->name('hotels.rooms.review');
+
+            // Save a draft only; no wallet debit or supplier booking occurs here.
+            Route::post('/hotels/rooms/review/{token}/draft', [
+    HotelRoomsController::class,
+    'saveDraft',
+])
+    ->middleware([
+        'admin.permission:bookings.create',
+        'throttle:5,1',
+    ])
+    ->name('hotels.rooms.draft');
+
+            // Confirm a hotel booking only through the protected booking workflow.
+            // The controller's confirm() method and supplier orchestration must
+            // be implemented and tested before enabling the UI action.
+            Route::post('/hotels/rooms/review/{token}/confirm', [
+                HotelRoomsController::class,
+                'confirm',
+            ])
+                ->middleware([
+                    'admin.permission:bookings.manage',
+                    'throttle:5,1',
+                ])
+                ->name('hotels.rooms.confirm');
 
 
             /*
