@@ -234,6 +234,28 @@ final class RateHawkBookingOrchestrator
         if (!$validDeposit) {
             throw new RuntimeException('Valid deposit payment option is required.');
         }
+        // Fail closed: the supplier will charge the FIRST supported deposit selected
+        // by RateHawkBookingService. Validate that exact option, not any later option.
+        $firstDeposit = null;
+        foreach ($options as $option) {
+            if (is_array($option) && ($option['type'] ?? null) === 'deposit'
+                && ($option['is_need_credit_card_data'] ?? false) === false
+                && is_numeric($option['amount'] ?? null)
+                && is_string($option['currency_code'] ?? null)
+                && preg_match('/^[A-Z]{3}$/D', $option['currency_code']) === 1) {
+                $firstDeposit = $option;
+                break;
+            }
+        }
+        $price = DB::table('rt_booking_price_snapshots')
+            ->where('booking_id', $bookingId)->orderByDesc('version')->first();
+        if (!$price || !$firstDeposit || !is_string((string) $price->supplier_cost)
+            || !preg_match('/^\d+(?:\.\d{1,6})?$/D', (string) $price->supplier_cost)
+            || !preg_match('/^\d+(?:\.\d{1,6})?$/D', (string) $firstDeposit['amount'])
+            || (string) $price->currency !== (string) $firstDeposit['currency_code']
+            || bccomp((string) $price->supplier_cost, (string) $firstDeposit['amount'], 6) !== 0) {
+            throw new RuntimeException('Supplier deposit does not match latest verified supplier cost.');
+        }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($phone) < 5 || strlen($phone) > 35) {
             throw new RuntimeException('Invalid booking contact details.');
         }

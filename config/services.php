@@ -58,6 +58,7 @@ return [
         'key_id' => env('RATEHAWK_KEY_ID'),
 
         'api_key' => env('RATEHAWK_API_KEY'),
+         'allow_sandbox_finish' => env('RATEHAWK_ALLOW_SANDBOX_FINISH', false),
     ],
 
     /*
