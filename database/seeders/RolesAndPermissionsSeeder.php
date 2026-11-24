@@ -21,6 +21,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'price_requests.view',
             'price_requests.manage',
             'bookings.create',
+            'bookings.manage',
             'bookings.cancel',
             'payments.view',
             'payments.manage',

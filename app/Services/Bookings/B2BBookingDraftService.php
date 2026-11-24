@@ -83,16 +83,41 @@ final class B2BBookingDraftService
             throw new HttpException(409, 'Invalid supplier offer reference.');
         }
 
+        abort_unless($currency === 'USD', 409, 'Confirmation currently requires USD.');
+        abort_unless(is_string($offerRef) && str_starts_with($offerRef, 'p-') && is_string($review['hotelpage_book_hash'] ?? null) && str_starts_with($review['hotelpage_book_hash'], 'h-') && isset($review['prebook_verified_at'], $review['hid']), 409, 'Prebook again.');
+        $verifiedAt = \Illuminate\Support\Carbon::parse($review['prebook_verified_at']);
+        abort_if($verifiedAt->isFuture() || $verifiedAt->lte(now()->subMinutes(10)), 410, 'Prebook expired.');
+        $resolved = app(\App\Services\Hotels\RateHawkPriceResolver::class)->resolve(app(\App\Services\Hotels\RateHawkRateNormalizer::class)->normalize($review['rate']));
+        abort_unless(($resolved['pricing_verified'] ?? false) === true && ($resolved['currency'] ?? null) === 'USD' && ($resolved['payment_type'] ?? null) === 'deposit', 409, 'Supplier price unavailable.');
+        $cost = (string) $resolved['amount'];
+        $purchase = (string) ($price['agency_purchase_price'] ?? '');
+        foreach ([$cost, $purchase, $total] as $amount) {
+            abort_unless(preg_match('/^\d+(?:\.\d{1,2})?$/D', $amount) && bccomp($amount, '0', 2) > 0, 409, 'Invalid price.');
+        }
+        abort_unless(bccomp($purchase, $cost, 2) >= 0 && bccomp($total, $purchase, 2) >= 0, 409, 'Invalid price breakdown.');
+        $supplierId = DB::table('rt_suppliers')->where('code','RATEHAWK')->where('adapter_code','RATEHAWK')->where('status','active')->value('id');
+        abort_unless($supplierId, 409, 'Supplier unavailable.');
+        foreach ($data['guests'] as $g) {
+            abort_unless(isset($rooms[$g['room_index']]) && \App\Services\Hotels\RateHawkBookingService::validGuestName($g['first_name']) && \App\Services\Hotels\RateHawkBookingService::validGuestName($g['last_name']), 422, 'Invalid guest or room.');
+        }
+        foreach ($rooms as $i => $room) {
+            $assigned = array_filter($data['guests'], fn($g) => (int)$g['room_index'] === $i);
+            $ages = []; $adultCount = 0;
+            foreach ($assigned as $g) { if ($g['guest_type'] === 'adult') { $adultCount++; } else { abort_unless(isset($g['age']),422,'Child age required.'); $ages[] = (int)$g['age']; } }
+            $expected = array_map('intval', $room['children']); sort($expected); sort($ages);
+            abort_unless($adultCount === (int)$room['adults'] && $ages === $expected, 422, 'Room occupancy mismatch.');
+        }
         $scope = 'b2b.hotel.booking.draft.' . strtolower($companyId) . '.' . $userId;
         $keyHash = hash('sha256', $idempotencyKey);
         $requestHash = hash('sha256', json_encode([
             'review_token' => $reviewToken,
+            'contact_email' => $data['contact_email'], 'contact_phone' => $data['contact_phone'],
             'guests' => $data['guests'],
             'customer_id' => $data['customer_id'] ?? null,
             'customer' => $data['customer'] ?? null,
         ], JSON_THROW_ON_ERROR));
 
-        return DB::transaction(function () use ($userId, $companyId, $data, $scope, $keyHash, $requestHash, $search, $price, $currency, $total, $offerRef, $rooms) {
+        return DB::transaction(function () use ($userId, $companyId, $data, $scope, $keyHash, $requestHash, $search, $price, $currency, $total, $offerRef, $rooms, $cost, $purchase, $supplierId, $review, $verifiedAt) {
             // A unique (scope, key_hash) constraint arbitrates concurrent identical requests.
             DB::table('rt_idempotency_keys')->insertOrIgnore([
                 'id' => (string) Str::uuid(),
@@ -141,7 +166,7 @@ final class B2BBookingDraftService
                 'id' => $bookingId, 'order_id' => $orderId, 'booking_no' => $bookingNo,
                 'service_type' => 'hotel', 'channel' => 'b2b', 'company_id' => $companyId,
                 'customer_id' => $customerId, 'customer_user_id' => null, 'status' => 'draft', 'currency' => $currency,
-                'approved_total' => null, 'version' => 1,
+                'supplier_id' => $supplierId, 'approved_total' => $purchase, 'version' => 1,
                 'created_at' => $now, 'updated_at' => $now,
             ]);
             DB::table('rt_hotel_booking_details')->insert([
@@ -151,6 +176,16 @@ final class B2BBookingDraftService
                 'check_in' => $search['checkin'], 'check_out' => $search['checkout'],
                 'rooms_count' => count($rooms), 'supplier_offer_ref' => $offerRef,
             ]);
+            DB::table('rt_ratehawk_booking_offer_contexts')->insert([
+                'booking_id'=>$bookingId,'environment'=>$review['environment'],'hid'=>$review['hid'],
+                'hotelpage_book_hash'=>$review['hotelpage_book_hash'],'prebook_hash'=>$offerRef,
+                'prebook_verified_at'=>$verifiedAt,'currency'=>'USD','supplier_cost'=>$cost,
+                'price_changed'=>(bool)$review['price_changed'],'created_at'=>$now,'updated_at'=>$now,
+            ]);
+            DB::table('rt_booking_supplier_contacts')->insert([
+                'booking_id'=>$bookingId,'email_encrypted'=>\Illuminate\Support\Facades\Crypt::encryptString($data['contact_email']),
+                'phone_encrypted'=>\Illuminate\Support\Facades\Crypt::encryptString($data['contact_phone']), 'created_at'=>$now,'updated_at'=>$now,
+            ]);
             foreach ($data['guests'] as $guest) {
                 DB::table('rt_booking_guests')->insert([
                     'id' => (string) Str::uuid(), 'booking_id' => $bookingId,
@@ -158,14 +193,14 @@ final class B2BBookingDraftService
                     'guest_type' => $guest['guest_type'],
                     'date_of_birth' => $guest['date_of_birth'] ?? null,
                     'nationality_code' => $guest['nationality_code'] ?? null,
-                    'is_lead' => $guest['is_lead'],
+                    'is_lead' => $guest['is_lead'], 'room_index'=>$guest['room_index'], 'age'=>$guest['age'] ?? null, 'gender'=>$guest['gender'] ?? null,
                 ]);
             }
             DB::table('rt_booking_price_snapshots')->insert([
                 'id' => (string) Str::uuid(), 'booking_id' => $bookingId,
                 'version' => 1, 'currency' => $currency,
                 // The current review only supplies an agency purchase price, not the raw supplier cost.
-                'supplier_cost' => null, 'admin_markup' => null, 'company_markup' => null,
+                'supplier_cost' => $cost, 'admin_markup' => bcsub($purchase,$cost,2), 'company_markup' => bcsub($total,$purchase,2),
                 'discount_amount' => 0, 'fee_amount' => 0, 'tax_amount' => 0,
                 'customer_total' => $total, 'created_at' => $now,
             ]);
@@ -174,7 +209,7 @@ final class B2BBookingDraftService
                 'order_id' => $orderId, 'order_no' => $orderNo,
                 'booking_id' => $bookingId, 'booking_no' => $bookingNo,
                 'status' => 'draft', 'currency' => $currency, 'customer_total' => $total,
-                'next_step' => 'payment_method',
+                'agency_purchase_price'=>$purchase, 'next_step' => 'confirm',
                 'payment_collected' => false, 'supplier_booking_created' => false,
             ];
             DB::table('rt_idempotency_keys')->where('id', $idem->id)->update([

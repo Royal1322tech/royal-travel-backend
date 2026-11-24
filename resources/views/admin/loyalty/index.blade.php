@@ -1,40 +1,48 @@
 @extends('admin.layouts.app')
 @section('title', 'B2B Loyalty Points')
 @section('content')
-<div style="max-width:1250px;margin:auto;padding:24px">
- <h1 style="font-size:28px;font-weight:800;color:#071d48">B2B Loyalty Points</h1>
- <p>Manage points earned from confirmed hotel bookings and manual company rewards. Redemption is disabled.</p>
- @if(session('success'))<p style="padding:12px;background:#e9f7ef">{{ session('success') }}</p>@endif
- @if($errors->any())<div style="padding:12px;background:#fff0f0">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
- @php($canManage = auth()->user() !== null)
- <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin:20px 0">
-  <section style="background:white;border:1px solid #e3e8f2;border-radius:14px;padding:20px">
-   <h2 style="font-size:19px;font-weight:700">Reward Rule</h2>
-   <p>Points per 100 units of booking total, per currency. Saving starts a new effective period.</p>
-   <form method="POST" action="{{ route('admin.loyalty.rules.save') }}">@csrf
-    <label>Company (optional = all companies)</label><select name="company_id" style="display:block;width:100%;padding:9px;margin:8px 0"><option value="">All companies</option>@foreach($companies as $company)<option value="{{ $company->id }}">{{ $company->display_name ?: $company->legal_name }}</option>@endforeach</select>
-    <label>Currency</label><input name="currency" value="USD" required maxlength="3" style="display:block;width:100%;padding:9px;margin:8px 0">
-    <label>Points per 100</label><input type="number" step="0.0001" min="0" max="100000" name="points_per_100" required value="1" style="display:block;width:100%;padding:9px;margin:8px 0">
-    <label>Enabled</label><select name="enabled" style="display:block;width:100%;padding:9px;margin:8px 0"><option value="0">No (safe default)</option><option value="1">Yes</option></select>
-    <button style="background:#071d48;color:white;padding:10px 18px;border-radius:8px">Save rule</button>
-   </form>
-  </section>
-  <section style="background:white;border:1px solid #e3e8f2;border-radius:14px;padding:20px">
-   <h2 style="font-size:19px;font-weight:700">Manual adjustment</h2>
-   <form method="POST" action="{{ route('admin.loyalty.adjust') }}">@csrf
-    <label>Company</label><select name="company_id" required style="display:block;width:100%;padding:9px;margin:8px 0">@foreach($companies as $company)<option value="{{ $company->id }}">{{ $company->display_name ?: $company->legal_name }}</option>@endforeach</select>
-    <label>Action</label><select name="action" style="display:block;width:100%;padding:9px;margin:8px 0"><option value="credit">Add points</option><option value="debit">Deduct points</option></select>
-    <label>Points</label><input name="points" type="number" min="1" max="1000000" required style="display:block;width:100%;padding:9px;margin:8px 0">
-    <label>Reason</label><textarea name="reason" required minlength="5" maxlength="1000" style="display:block;width:100%;padding:9px;margin:8px 0"></textarea>
-    <button style="background:#071d48;color:white;padding:10px 18px;border-radius:8px">Record adjustment</button>
-   </form>
-  </section>
+<style>
+.rl{--navy:#02143c;--gold:#b7731e;--line:#e5e9ef;color:var(--navy);font-size:14px}.rl *{box-sizing:border-box}.rl h1{font-size:26px;font-weight:750;margin:0}.rl h2{font-size:17px;font-weight:700;margin:0}.rl p{color:#64748b;margin:6px 0;line-height:1.6}.rl-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:22px}.rl-kicker{font-size:11px;letter-spacing:.12em;font-weight:700;color:var(--gold);margin-bottom:7px}.rl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-bottom:18px}.rl-card{background:white;border:1px solid var(--line);border-radius:14px;padding:22px;min-width:0;margin-bottom:18px}.rl-grid>.rl-card{margin:0}.rl-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:10px;background:#f6ede2;color:var(--gold);flex-shrink:0}.rl-icon svg{width:22px;height:22px}.rl-section-head{display:flex;align-items:center;gap:12px;margin-bottom:18px}.rl-stat{font-size:28px;font-weight:750;margin-top:12px}.rl-caption{font-size:12px;color:#64748b}.rl label{display:block;font-size:13px;font-weight:600;margin:15px 0 6px}.rl input,.rl select,.rl textarea{width:100%;display:block;border:1px solid #dce2e9;border-radius:9px;padding:11px 12px;background:white;color:var(--navy);font:inherit}.rl textarea{min-height:85px;resize:vertical}.rl input:focus,.rl select:focus,.rl textarea:focus{outline:2px solid #b7731e;outline-offset:1px}.rl-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--gold);color:white;border:0;border-radius:9px;padding:11px 18px;font-weight:650;cursor:pointer;margin-top:18px}.rl-btn:hover{background:#985e18}.rl-btn svg{width:17px;height:17px}.rl-scroll{overflow-x:auto}.rl table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}.rl th{background:#f4f6f8;color:#64748b;font-size:12px;font-weight:650}.rl th,.rl td{padding:14px 12px;border-bottom:1px solid #edf0f4}.rl tbody tr:hover{background:#fafbfc}.rl td.rl-wrap{white-space:normal;min-width:150px;overflow-wrap:anywhere}.rl-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;background:#eef1f5;color:#526074;font-size:12px;font-weight:600}.rl-green{background:#e5f5ed;color:#167347}.rl-amber{background:#fff0d5;color:#946000}.rl-alert{padding:14px;border-radius:9px;background:#e5f5ed;color:#167347;margin-bottom:16px}.rl-error{background:#fceaea;color:#a32d2d}.rl-error p{color:inherit}.rl-empty{text-align:center;color:#64748b;padding:30px!important}.rl-pagination{margin-top:18px}.rl-forms{align-items:stretch}.rl-forms form{display:flex;flex-direction:column;height:100%}.rl-forms .rl-form-body{flex:1}.rl-forms .rl-btn{align-self:flex-start}.rl-number{font-variant-numeric:tabular-nums;font-weight:650}@media(max-width:800px){.rl-grid{grid-template-columns:1fr}.rl-card{padding:16px}}
+</style>
+@php
+    $canManage = auth()->user() !== null;
+    $pageCompanies = $companies->getCollection();
+    $icons = [
+        'star'=>'<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/>',
+        'clock'=>'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+        'rule'=>'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="white"/><circle cx="15" cy="17" r="2" fill="white"/>',
+        'adjust'=>'<path d="M4 7h16M12 3v8M4 17h16"/>',
+        'building'=>'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h2m4 0h2M8 11h2m4 0h2M10 21v-5h4v5"/>',
+        'ledger'=>'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+    ];
+@endphp
+<div class="rl">
+ <header class="rl-head"><div><div class="rl-kicker">FINANCE / LOYALTY</div><h1>B2B Loyalty Points</h1><p>Manage booking rewards and manual company adjustments.</p></div><span class="rl-pill rl-amber">Redemption disabled</span></header>
+ @if(session('success'))<div class="rl-alert" role="status">{{ session('success') }}</div>@endif
+ @if($errors->any())<div class="rl-alert rl-error" role="alert">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
+ <div class="rl-grid">
+ @foreach(['Available points'=>['available','star'],'Pending points'=>['pending','clock']] as $label=>$item)
+ <section class="rl-card"><div class="rl-section-head"><span class="rl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{!! $icons[$item[1]] !!}</svg></span><div><h2>{{ $label }}</h2><span class="rl-caption">Companies on this page</span></div></div><div class="rl-stat">{{ number_format($pageCompanies->sum(fn($company) => $company->balances[$item[0]])) }}</div></section>
+ @endforeach
  </div>
- <section style="background:white;border:1px solid #e3e8f2;border-radius:14px;padding:20px;margin:18px 0;overflow-x:auto"><h2 style="font-size:19px;font-weight:700">Active / saved rules</h2>
- <table style="width:100%;text-align:left"><thead><tr><th>Company</th><th>Currency</th><th>Points / 100</th><th>Enabled</th><th>Effective from</th></tr></thead><tbody>@forelse($rules as $rule)<tr><td>{{ $rule->legal_name ?: 'All companies' }}</td><td>{{ $rule->currency }}</td><td>{{ $rule->points_per_100 }}</td><td>{{ $rule->enabled ? 'Yes' : 'No' }}</td><td>{{ $rule->effective_from }}</td></tr>@empty<tr><td colspan="5">No rules yet.</td></tr>@endforelse</tbody></table></section>
- <section style="background:white;border:1px solid #e3e8f2;border-radius:14px;padding:20px;margin:18px 0;overflow-x:auto"><h2 style="font-size:19px;font-weight:700">Company points</h2>
- <table style="width:100%;text-align:left"><thead><tr><th>Company</th><th>Available</th><th>Pending</th></tr></thead><tbody>@foreach($companies as $company)<tr><td>{{ $company->display_name ?: $company->legal_name }}</td><td>{{ $company->balances['available'] }}</td><td>{{ $company->balances['pending'] }}</td></tr>@endforeach</tbody></table>{{ $companies->links() }}</section>
- <section style="background:white;border:1px solid #e3e8f2;border-radius:14px;padding:20px;margin:18px 0;overflow-x:auto"><h2 style="font-size:19px;font-weight:700">Recent transactions</h2>
- <table style="width:100%;text-align:left"><thead><tr><th>Date</th><th>Company</th><th>Type</th><th>Points</th><th>Bucket</th><th>Booking</th><th>Note</th></tr></thead><tbody>@forelse($entries as $entry)<tr><td>{{ $entry->created_at }}</td><td>{{ $entry->legal_name }}</td><td>{{ $entry->entry_type }}</td><td>{{ $entry->points }}</td><td>{{ $entry->balance_bucket }}</td><td>{{ $entry->booking_id ?: '—' }}</td><td>{{ $entry->note }}</td></tr>@empty<tr><td colspan="7">No transactions.</td></tr>@endforelse</tbody></table></section>
+ <div class="rl-grid rl-forms">
+ <section class="rl-card"><div class="rl-section-head"><span class="rl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">{!! $icons['rule'] !!}</svg></span><div><h2>Reward Rule</h2><p>Configure booking rewards per currency.</p></div></div>
+ <form method="POST" action="{{ route('admin.loyalty.rules.save') }}">@csrf
+ <div class="rl-form-body"><p>Points per 100 units of booking total. Saving starts a new effective period.</p>
+ <label for="rl-rule-company">Company</label><select id="rl-rule-company" name="company_id"><option value="">All companies</option>@foreach($companies as $company)<option value="{{ $company->id }}">{{ $company->display_name ?: $company->legal_name }}</option>@endforeach</select>
+ <label for="rl-currency">Currency</label><input id="rl-currency" name="currency" value="USD" required maxlength="3">
+ <label for="rl-rate">Points per 100</label><input id="rl-rate" type="number" step="0.0001" min="0" max="100000" name="points_per_100" required value="1">
+ <label for="rl-enabled">Enabled</label><select id="rl-enabled" name="enabled"><option value="0">No (safe default)</option><option value="1">Yes</option></select></div>
+ <button class="rl-btn" type="submit">Save rule</button></form></section>
+ <section class="rl-card"><div class="rl-section-head"><span class="rl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">{!! $icons['adjust'] !!}</svg></span><div><h2>Manual Adjustment</h2><p>Add or deduct company reward points.</p></div></div>
+ <form method="POST" action="{{ route('admin.loyalty.adjust') }}">@csrf<div class="rl-form-body">
+ <label for="rl-adjust-company">Company</label><select id="rl-adjust-company" name="company_id" required>@foreach($companies as $company)<option value="{{ $company->id }}">{{ $company->display_name ?: $company->legal_name }}</option>@endforeach</select>
+ <label for="rl-action">Action</label><select id="rl-action" name="action"><option value="credit">Add points</option><option value="debit">Deduct points</option></select>
+ <label for="rl-points">Points</label><input id="rl-points" name="points" type="number" min="1" max="1000000" required>
+ <label for="rl-reason">Reason</label><textarea id="rl-reason" name="reason" required minlength="5" maxlength="1000" placeholder="Enter adjustment reason"></textarea></div><button class="rl-btn" type="submit">Record adjustment</button></form></section>
+ </div>
+ <section class="rl-card"><div class="rl-section-head"><span class="rl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">{!! $icons['rule'] !!}</svg></span><div><h2>Active / Saved Rules</h2><p>Reward configurations and effective periods.</p></div></div><div class="rl-scroll"><table><thead><tr><th>Company</th><th>Currency</th><th>Points / 100</th><th>Enabled</th><th>Effective from</th></tr></thead><tbody>@forelse($rules as $rule)<tr><td>{{ $rule->legal_name ?: 'All companies' }}</td><td>{{ $rule->currency }}</td><td class="rl-number">{{ $rule->points_per_100 }}</td><td><span class="rl-pill {{ $rule->enabled ? 'rl-green' : '' }}">{{ $rule->enabled ? 'Yes' : 'No' }}</span></td><td>{{ $rule->effective_from }}</td></tr>@empty<tr><td colspan="5" class="rl-empty">No rules yet.</td></tr>@endforelse</tbody></table></div></section>
+ <section class="rl-card"><div class="rl-section-head"><span class="rl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">{!! $icons['building'] !!}</svg></span><div><h2>Company Points</h2><p>Available and pending balances by company.</p></div></div><div class="rl-scroll"><table><thead><tr><th>Company</th><th>Available</th><th>Pending</th></tr></thead><tbody>@forelse($companies as $company)<tr><td>{{ $company->display_name ?: $company->legal_name }}</td><td><span class="rl-pill rl-green">{{ $company->balances['available'] }}</span></td><td><span class="rl-pill rl-amber">{{ $company->balances['pending'] }}</span></td></tr>@empty<tr><td colspan="3" class="rl-empty">No companies found.</td></tr>@endforelse</tbody></table></div><div class="rl-pagination">{{ $companies->links() }}</div></section>
+ <section class="rl-card"><div class="rl-section-head"><span class="rl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">{!! $icons['ledger'] !!}</svg></span><div><h2>Recent Transactions</h2><p>Latest recorded loyalty point movements.</p></div></div><div class="rl-scroll"><table><thead><tr><th>Date</th><th>Company</th><th>Type</th><th>Points</th><th>Bucket</th><th>Booking</th><th>Note</th></tr></thead><tbody>@forelse($entries as $entry)<tr><td>{{ $entry->created_at }}</td><td>{{ $entry->legal_name }}</td><td>{{ $entry->entry_type }}</td><td class="rl-number">{{ $entry->points }}</td><td><span class="rl-pill {{ $entry->balance_bucket === 'available' ? 'rl-green' : ($entry->balance_bucket === 'pending' ? 'rl-amber' : '') }}">{{ $entry->balance_bucket }}</span></td><td>{{ $entry->booking_id ?: '—' }}</td><td class="rl-wrap">{{ $entry->note }}</td></tr>@empty<tr><td colspan="7" class="rl-empty">No transactions.</td></tr>@endforelse</tbody></table></div></section>
 </div>
 @endsection

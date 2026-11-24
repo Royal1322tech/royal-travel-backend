@@ -20,7 +20,7 @@ use Illuminate\Validation\Rule;
  */
 final class BookingReadController extends Controller
 {
-    private const STATUSES = ['draft', 'pending', 'confirmed', 'failed', 'cancelled', 'completed'];
+    private const STATUSES = ['draft', 'pending', 'pending_supplier', 'confirmed', 'failed', 'cancelled', 'completed'];
 
     private function companyId(Request $request): string
     {
@@ -46,6 +46,52 @@ final class BookingReadController extends Controller
 
         $page = $query->paginate(20)->through(fn ($row) => $this->summary($row));
 
+        return response()->json($page)->header('Cache-Control', 'no-store');
+    }
+
+    public function myBookings(Request $request): JsonResponse
+    {
+        return $this->employeeBookings($request, false);
+    }
+
+    public function myIncomplete(Request $request): JsonResponse
+    {
+        return $this->employeeBookings($request, true);
+    }
+
+    private function employeeBookings(Request $request, bool $incomplete): JsonResponse
+    {
+        $companyId = $this->companyId($request);
+        $statuses = $incomplete ? ['draft', 'pending', 'pending_supplier'] : self::STATUSES;
+        $data = $request->validate([
+            'status' => ['sometimes', 'string', Rule::in($statuses)],
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ]);
+        $query = $this->baseQuery($companyId)
+            ->where('o.company_id', $companyId)
+            ->where('o.channel', 'b2b')
+            ->where('o.created_by', $request->user()->getAuthIdentifier());
+        if ($incomplete) {
+            $query->whereIn('b.status', $statuses);
+        }
+        if (isset($data['status'])) {
+            $query->where('b.status', $data['status']);
+        }
+        $query->addSelect('b.confirmed_at')->selectSub(
+            DB::table('rt_supplier_booking_attempts as a')
+                ->select('a.state')->whereColumn('a.booking_id', 'b.id')
+                ->where('a.operation', 'ratehawk_hotel_booking')
+                ->orderByDesc('a.attempt_no')->limit(1),
+            'confirmation_state'
+        );
+        $page = $query->orderByDesc('b.created_at')->orderByDesc('b.id')
+            ->paginate((int) ($data['per_page'] ?? 20))->withQueryString()
+            ->through(fn ($row) => $this->summary($row) + [
+                'confirmation_state' => $row->confirmation_state,
+                'confirmed_at' => $row->confirmed_at,
+                'can_resume_draft' => $row->status === 'draft' && $row->confirmation_state === null,
+            ]);
         return response()->json($page)->header('Cache-Control', 'no-store');
     }
 

@@ -305,5 +305,24 @@ Route::prefix('b2b/bookings')
     ->middleware(['auth:sanctum', 'b2b.api.permission:bookings.view', 'throttle:30,1'])
     ->group(function (): void {
         Route::get('/', [\App\Http\Controllers\Api\V1\B2B\Bookings\BookingReadController::class, 'index'])->name('index');
+        Route::get('/my-bookings', [\App\Http\Controllers\Api\V1\B2B\Bookings\BookingReadController::class, 'myBookings'])->name('my-bookings');
+        Route::get('/my-incomplete', [\App\Http\Controllers\Api\V1\B2B\Bookings\BookingReadController::class, 'myIncomplete'])->name('my-incomplete');
         Route::get('/{booking}', [\App\Http\Controllers\Api\V1\B2B\Bookings\BookingReadController::class, 'show'])->name('show');
     });
+
+Route::post('/b2b/bookings/{booking}/confirm', [\App\Http\Controllers\Api\V1\B2B\Bookings\BookingConfirmationController::class,'confirm'])
+    ->middleware(['auth:sanctum','b2b.api.permission:bookings.create','throttle:5,1'])->name('api.v1.b2b.bookings.confirm');
+Route::get('/b2b/bookings/{booking}/status', [\App\Http\Controllers\Api\V1\B2B\Bookings\BookingConfirmationController::class,'status'])
+    ->middleware(['auth:sanctum','b2b.api.permission:bookings.view','throttle:30,1'])->name('api.v1.b2b.bookings.status');
+
+// Booking support: employee-owned tickets only.
+Route::middleware(['auth:sanctum','b2b.api.permission:bookings.view','throttle:30,1'])->group(function(){
+ $c=\App\Http\Controllers\Api\V1\B2B\Bookings\SupportTicketController::class;
+ Route::get('/b2b/tickets/categories',[$c,'categories']);
+ Route::get('/b2b/tickets',[$c,'index']);
+ Route::get('/b2b/tickets/{ticket}',[$c,'show'])->whereUuid('ticket');
+ Route::get('/b2b/bookings/{booking}/tickets',[$c,'forBooking'])->whereUuid('booking');
+ Route::post('/b2b/bookings/{booking}/tickets',[$c,'store'])->whereUuid('booking')->middleware('throttle:5,1');
+ Route::post('/b2b/tickets/{ticket}/messages',[$c,'reply'])->whereUuid('ticket')->middleware('throttle:10,1');
+});
+

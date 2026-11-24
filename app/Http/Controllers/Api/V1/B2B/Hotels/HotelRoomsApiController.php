@@ -509,6 +509,8 @@ final class HotelRoomsApiController extends Controller
                 'rate' => $result['rate'],
                 'price' => $price,
                 'price_changed' => $priceChanged,
+                'hotelpage_book_hash' => $hash,
+                'prebook_verified_at' => now()->toIso8601String(),
             ],
             now()->addMinutes(10)
         );

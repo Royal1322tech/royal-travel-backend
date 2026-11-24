@@ -85,6 +85,7 @@ final class RateHawkBookingOrchestrator
                 throw new RuntimeException('Booking attempt state changed unexpectedly.');
             }
             $this->storeReference($locked, 'ratehawk_order_id', (string) $form['order_id']);
+            DB::table('rt_ratehawk_booking_forms')->insert(['attempt_id'=>$locked->id,'response_encrypted'=>\Illuminate\Support\Facades\Crypt::encryptString(json_encode($form, JSON_THROW_ON_ERROR)), 'received_at'=>now(),'created_at'=>now(),'updated_at'=>now()]);
             $locked->state = 'form_ready';
             $locked->save();
         });

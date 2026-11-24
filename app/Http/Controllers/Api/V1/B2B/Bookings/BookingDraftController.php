@@ -34,6 +34,11 @@ final class BookingDraftController extends Controller
             'guests.*.guest_type' => ['required', 'in:adult,child'],
             'guests.*.date_of_birth' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
             'guests.*.nationality_code' => ['nullable', 'string', 'regex:/^[A-Za-z]{2}$/D'],
+            'contact_email' => ['required', 'email', 'max:254'],
+            'contact_phone' => ['required', 'string', 'min:5', 'max:35'],
+            'guests.*.room_index' => ['required', 'integer', 'min:0', 'max:7'],
+            'guests.*.age' => ['required_if:guests.*.guest_type,child', 'nullable', 'integer', 'min:0', 'max:17'],
+            'guests.*.gender' => ['nullable', 'in:male,female,unknown'],
             'guests.*.is_lead' => ['required', 'boolean'],
         ]);
 

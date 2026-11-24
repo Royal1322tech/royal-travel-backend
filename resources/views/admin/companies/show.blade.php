@@ -1,196 +1,33 @@
+@extends('admin.layouts.app')
+@section('title','Company Details')
+@section('content')
+<style>
+.rc{color:#02143c;font-size:14px}.rc *{box-sizing:border-box}.rc h1{font-size:25px;margin:0}.rc h2{font-size:16px;margin:0}.rc p{color:#64748b;margin:5px 0}.rc-head,.rc-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.rc-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:20px;margin-top:18px}.rc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}.rc-stat{display:flex;gap:12px;align-items:center}.rc-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:10px;background:#f5ede3;color:#b7731e}.rc-icon svg,.rc-btn svg{width:20px;height:20px}.rc-stat strong{display:block;font-size:26px}.rc small,.rc label{color:#64748b}.rc label{display:block;font-weight:600}.rc input,.rc select{display:block;width:100%;border:1px solid #dce1e7;border-radius:9px;background:#fff;padding:11px;margin-top:7px;color:#02143c}.rc-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 17px;border:1px solid #b7731e;border-radius:9px;color:#a56216;background:white;text-decoration:none;font-weight:600;cursor:pointer}.rc-primary{background:#b7731e;color:white}.rc-scroll{overflow-x:auto}.rc table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap;margin-top:16px}.rc th{background:#f1f3f5;color:#475569;font-size:12px}.rc th,.rc td{padding:15px 12px;border-bottom:1px solid #edf0f3}.rc tr:hover td{background:#fafbfc}.rc-badge{display:inline-block;padding:5px 10px;border-radius:6px;background:#eef1f5;color:#475569;font-size:12px;font-weight:600}.rc-approved{background:#e5f5ed;color:#167347}.rc-pending{background:#fff0d5;color:#946000}.rc-rejected,.rc-suspended{background:#fceaea;color:#a32d2d}.rc-alert{padding:12px;background:#e5f5ed;border-radius:9px;margin-top:12px}.rc-error{background:#fceaea;color:#a32d2d}.rc-tools{display:flex;gap:6px}.rc-tools .rc-btn{padding:7px;border-color:#e0e5eb;color:#526074}.rc-tools button:disabled{opacity:.4;cursor:not-allowed}.rc-tools svg{width:17px;height:17px}.rc-filter{display:grid;grid-template-columns:2fr 1fr;gap:16px}@media(max-width:650px){.rc-filter{grid-template-columns:1fr}}
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Company Details | Royal Travel</title>
-    <style>
-        :root { --navy:#02143C; --gold:#B7731E; --border:#E5EAF1; }
-        * { box-sizing:border-box; }
-        body { margin:0; background:#F7F9FC; color:#17243B; font-family:Inter,Arial,sans-serif; }
-        .container { max-width:1100px; margin:42px auto; padding:0 24px; }
-        .header { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center; margin-bottom:25px; }
-        h1,h2 { color:var(--navy); }
-        h1 { margin:8px 0; }
-        h2 { font-size:18px; margin:0 0 20px; }
-        .muted { color:#64748B; font-size:13px; }
-        .card { background:white; padding:26px; border:1px solid var(--border); border-radius:16px; margin-bottom:20px; }
-        .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
-        .item span { display:block; font-size:12px; color:#64748B; margin-bottom:7px; }
-        .item strong { overflow-wrap:anywhere; }
-        .btn { display:inline-block; background:white; border:1px solid var(--border); color:var(--navy); padding:11px 17px; border-radius:9px; text-decoration:none; cursor:pointer; font-weight:600; }
-        .primary { background:var(--navy); color:white; }
-        .danger { color:#A32D2D; border-color:#E8C9C9; }
-        .toolbar { display:flex; gap:10px; flex-wrap:wrap; }
-        .toolbar form { margin:0; }
-        .badge { display:inline-block; background:#EEF1F5; padding:6px 12px; border-radius:30px; font-size:12px; }
-        .approved { background:#E8F7EF; color:#167347; }
-        .suspended { background:#FCEAEA; color:#A32D2D; }
-        table { width:100%; border-collapse:collapse; text-align:left; }
-        th,td { padding:12px; border-bottom:1px solid var(--border); font-size:13px; }
-        .alert { padding:15px; border-radius:10px; margin-bottom:20px; background:#E8F7EF; color:#167347; }
-        @media(max-width:650px) { .grid { grid-template-columns:1fr; } .card { overflow-x:auto; } }
-    </style>
-</head>
-<body>
-<div class="container">
-
-<section class="card">
-    <h2>B2B Finance — USD</h2>
-    <div class="grid">
-        <div class="item"><span>Wallet</span><strong>${{ number_format($financeAccount['wallet_cents']/100,2) }}</strong></div>
-        <div class="item"><span>Credit limit</span><strong>${{ number_format($financeAccount['credit_limit_cents']/100,2) }}</strong></div>
-        <div class="item"><span>Credit used</span><strong>${{ number_format($financeAccount['credit_used_cents']/100,2) }}</strong></div>
-        <div class="item"><span>Credit available</span><strong>${{ number_format($financeAccount['credit_available_cents']/100,2) }}</strong></div>
-    </div>
-    <p class="muted">Credit status: {{ $financeAccount['credit_frozen'] ? 'Frozen' : 'Active' }}</p>
-    @if(app(\App\Modules\Identity\Services\PermissionService::class)->adminCan(auth()->user(),'companies.manage'))
-    <p class="muted">Financial operations require authorized admin access. Every operation needs a unique reference and a reason.</p>
-    <form method="POST" action="{{ route('admin.companies.finance.update',$company->id) }}">
-        @csrf
-        <div class="grid">
-            <label>Operation<select name="type" required style="width:100%;padding:10px"><option value="wallet_topup">Top up wallet</option><option value="set_credit_limit">Set credit limit</option><option value="credit_settlement">Record credit repayment</option><option value="credit_freeze">Freeze credit</option><option value="credit_unfreeze">Unfreeze credit</option></select></label>
-            <label>Amount (USD; leave blank for freeze)<input name="amount" inputmode="decimal" placeholder="100.00" style="width:100%;padding:10px"></label>
-            <label>Unique transaction reference<input name="reference" required maxlength="100" style="width:100%;padding:10px"></label>
-            <label>Reason<input name="reason" required minlength="5" maxlength="2000" style="width:100%;padding:10px"></label>
-        </div>
-        <p><button class="btn primary" type="submit">Record financial operation</button></p>
-    </form>
-    @endif
-    @if($errors->any())<div class="alert" style="background:#fff1f2;color:#9f1239">{{ $errors->first() }}</div>@endif
-    <h2>Recent ledger entries</h2>
-    <div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Operation</th><th>Amount (USD)</th><th>Reference</th><th>Reason</th></tr></thead><tbody>
-    @forelse($financeEntries as $entry)<tr><td>{{ $entry->created_at }}</td><td>{{ $entry->type }}</td><td>{{ $entry->amount_cents === null ? '—' : number_format($entry->amount_cents/100,2) }}</td><td>{{ $entry->reference }}</td><td>{{ $entry->reason }}</td></tr>
-    @empty<tr><td colspan="5">No financial transactions yet.</td></tr>@endforelse
-    </tbody></table></div>
-</section>
-
-    <div class="header">
-        <div>
-            <a class="muted" href="{{ route('admin.companies.index') }}">
-                Companies / Back to list
-            </a>
-            <h1>{{ $company->display_name ?: $company->legal_name }}</h1>
-            <span class="badge {{ $company->status }}">
-                {{ ucfirst($company->status) }}
-            </span>
-        </div>
-
-        <div class="toolbar">
-
-    <a class="btn primary"
-       href="{{ route('admin.companies.edit', $company->id) }}">
-        Edit Company
-    </a>
-
-    @if($company->status === 'pending')
-
-        <form method="POST"
-              action="{{ route('admin.companies.approve', $company->id) }}"
-              onsubmit="return confirm('Approve this company and activate its account?')">
-            @csrf
-            @method('PATCH')
-
-            <button type="submit" class="btn primary">
-                Approve Company
-            </button>
-        </form>
-
-    @elseif($company->status === 'approved')
-
-        <form method="POST"
-              action="{{ route('admin.companies.deactivate', $company->id) }}"
-              onsubmit="return confirm('Deactivate this company?')">
-            @csrf
-            @method('PATCH')
-
-            <button type="submit" class="btn danger">
-                Deactivate Company
-            </button>
-        </form>
-
-    @elseif($company->status === 'suspended')
-
-        <form method="POST"
-              action="{{ route('admin.companies.activate', $company->id) }}"
-              onsubmit="return confirm('Reactivate this company?')">
-            @csrf
-            @method('PATCH')
-
-            <button type="submit" class="btn primary">
-                Activate Company
-            </button>
-        </form>
-
-    @endif
-
+.rc-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-top:20px}.rc-fields strong{display:block;margin-top:6px;overflow-wrap:anywhere}.rc-head form{margin:0}.rc-danger{color:#a32d2d;border-color:#e8c9c9}.rc-finance{background:#f8fafc;padding:16px;border-radius:10px;margin-top:15px}.rc td:last-child{white-space:normal;overflow-wrap:anywhere}
+</style>
+<div class="rc">
+<a href="{{ route('admin.companies.index') }}" style="color:#64748b;text-decoration:none">← Back to companies</a>
+<div class="rc-head" style="margin-top:16px"><div><h1>{{ $company->display_name ?: $company->legal_name }}</h1><p>Company profile and account management</p><span class="rc-badge rc-{{ $company->status }}">{{ ucfirst($company->status) }}</span></div><div class="rc-actions"><a class="rc-btn" href="{{ route('admin.companies.edit',$company->id) }}">Edit Company</a>
+@if($company->status === 'pending')
+<form method="POST" action="{{ route('admin.companies.approve',$company->id) }}" onsubmit="return confirm('Approve this company and activate its account?')">@csrf @method('PATCH')<button class="rc-btn rc-primary" type="submit">Approve Company</button></form>
+@elseif($company->status === 'approved')
+<form method="POST" action="{{ route('admin.companies.deactivate',$company->id) }}" onsubmit="return confirm('Deactivate this company?')">@csrf @method('PATCH')<button class="rc-btn rc-danger" type="submit">Deactivate Company</button></form>
+@elseif($company->status === 'suspended')
+<form method="POST" action="{{ route('admin.companies.activate',$company->id) }}" onsubmit="return confirm('Reactivate this company?')">@csrf @method('PATCH')<button class="rc-btn rc-primary" type="submit">Activate Company</button></form>
+@endif</div></div>
+@if(session('success'))<div class="rc-alert" role="status">{{ session('success') }}</div>@endif
+@if($errors->any())<div class="rc-alert rc-error" role="alert">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
+<section class="rc-card"><h2>Company Information</h2><div class="rc-fields">
+@foreach(['Legal Name'=>$company->legal_name,'Business Type'=>$company->business_type,'Registration Number'=>$company->registration_no,'Country'=>$company->country_code,'City'=>$company->city,'Employees'=>$company->employee_count ?? '—','Address'=>$company->address,'Created'=>$company->created_at?->format('d M Y')] as $label=>$value)<div><small>{{ $label }}</small><strong>{{ $value ?? '—' }}</strong></div>@endforeach
+</div></section>
+<section class="rc-card"><div class="rc-head"><div><h2>B2B Finance — USD</h2><p>Wallet and credit overview</p></div><span class="rc-badge {{ $financeAccount['credit_frozen'] ? 'rc-suspended' : 'rc-approved' }}">Credit: {{ $financeAccount['credit_frozen'] ? 'Frozen' : 'Active' }}</span></div><div class="rc-grid">
+@foreach(['Wallet'=>'wallet_cents','Credit limit'=>'credit_limit_cents','Credit used'=>'credit_used_cents','Credit available'=>'credit_available_cents'] as $label=>$key)<div class="rc-finance"><small>{{ $label }}</small><div style="font-size:24px;font-weight:700;margin-top:8px">${{ number_format($financeAccount[$key]/100,2) }}</div></div>@endforeach</div>
+@if(app(\App\Modules\Identity\Services\PermissionService::class)->adminCan(auth()->user(),'companies.manage'))
+<div class="rc-finance"><h2>Record financial operation</h2><p>Financial operations require authorized admin access. Every operation needs a unique reference and a reason.</p><form method="POST" action="{{ route('admin.companies.finance.update',$company->id) }}">@csrf<div class="rc-fields"><label>Operation<select name="type" required><option value="wallet_topup">Top up wallet</option><option value="set_credit_limit">Set credit limit</option><option value="credit_settlement">Record credit repayment</option><option value="credit_freeze">Freeze credit</option><option value="credit_unfreeze">Unfreeze credit</option></select></label><label>Amount (USD; leave blank for freeze)<input name="amount" inputmode="decimal" placeholder="100.00"></label><label>Unique transaction reference<input name="reference" required maxlength="100"></label><label>Reason<input name="reason" required minlength="5" maxlength="2000"></label></div><div style="margin-top:16px"><button class="rc-btn rc-primary" type="submit">Record financial operation</button></div></form></div>
+@endif
+<h2 style="margin-top:24px">Recent ledger entries</h2><div class="rc-scroll"><table><thead><tr><th>Time</th><th>Operation</th><th>Amount (USD)</th><th>Reference</th><th>Reason</th></tr></thead><tbody>@forelse($financeEntries as $entry)<tr><td>{{ $entry->created_at }}</td><td>{{ $entry->type }}</td><td>{{ $entry->amount_cents === null ? '—' : number_format($entry->amount_cents/100,2) }}</td><td>{{ $entry->reference }}</td><td>{{ $entry->reason }}</td></tr>@empty<tr><td colspan="5">No financial transactions yet.</td></tr>@endforelse</tbody></table></div></section>
+<section class="rc-card"><h2>Company Contacts</h2><div class="rc-scroll"><table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Type</th></tr></thead><tbody>@forelse($contacts as $contact)<tr><td>{{ $contact->full_name }}</td><td>{{ $contact->email ?? '—' }}</td><td>{{ $contact->phone }}</td><td>{{ ucfirst($contact->contact_type) }}</td></tr>@empty<tr><td colspan="4">No contacts found.</td></tr>@endforelse</tbody></table></div></section>
+<section class="rc-card"><h2>Company Users</h2><div class="rc-scroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody>@forelse($members as $member)<tr><td>{{ $member->name }}</td><td>{{ $member->email }}</td><td>{{ $member->role_code }}</td><td><span class="rc-badge">{{ ucfirst($member->status) }}</span></td></tr>@empty<tr><td colspan="4">No users found.</td></tr>@endforelse</tbody></table></div></section>
 </div>
-    </div>
-
-    @if(session('success'))
-        <div class="alert">{{ session('success') }}</div>
-    @endif
-
-    <div class="card">
-        <h2>Company Information</h2>
-        <div class="grid">
-            <div class="item"><span>Legal Name</span><strong>{{ $company->legal_name }}</strong></div>
-            <div class="item"><span>Business Type</span><strong>{{ $company->business_type }}</strong></div>
-            <div class="item"><span>Registration Number</span><strong>{{ $company->registration_no }}</strong></div>
-            <div class="item"><span>Country</span><strong>{{ $company->country_code }}</strong></div>
-            <div class="item"><span>City</span><strong>{{ $company->city }}</strong></div>
-            <div class="item"><span>Employees</span><strong>{{ $company->employee_count ?? '—' }}</strong></div>
-            <div class="item"><span>Address</span><strong>{{ $company->address }}</strong></div>
-            <div class="item"><span>Created</span><strong>{{ $company->created_at?->format('d M Y') }}</strong></div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h2>Company Contacts</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th><th>Email</th><th>Phone</th><th>Type</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($contacts as $contact)
-                    <tr>
-                        <td>{{ $contact->full_name }}</td>
-                        <td>{{ $contact->email ?? '—' }}</td>
-                        <td>{{ $contact->phone }}</td>
-                        <td>{{ ucfirst($contact->contact_type) }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="4">No contacts found.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    <div class="card">
-        <h2>Company Users</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th><th>Email</th><th>Role</th><th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($members as $member)
-                    <tr>
-                        <td>{{ $member->name }}</td>
-                        <td>{{ $member->email }}</td>
-                        <td>{{ $member->role_code }}</td>
-                        <td>{{ ucfirst($member->status) }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="4">No users found.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-</div>
-</body>
-</html>
+@endsection
