@@ -215,24 +215,20 @@ final class RateHawkBookingOrchestrator
                 ->where('reference_value', (string) $orderId)->exists()) {
             throw new RuntimeException('Booking form order ID mismatch.');
         }
-        $options = $form['payment_types'] ?? null;
-        $validDeposit = false;
-        if (is_array($options)) {
-            foreach ($options as $option) {
-                if (is_array($option) && ($option['type'] ?? null) === 'deposit'
-                    && ($option['is_need_credit_card_data'] ?? false) === false
-                    && is_string($option['amount'] ?? null)
-                    && preg_match('/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,2})?$/D', $option['amount']) === 1
-                    && (float) $option['amount'] > 0
-                    && is_string($option['currency_code'] ?? null)
-                    && preg_match('/^[A-Z]{3}$/D', $option['currency_code']) === 1) {
-                    $validDeposit = true;
-                    break;
-                }
-            }
-        }
-        if (!$validDeposit) {
+        // Validate the EXACT option RateHawkBookingService will submit (first
+        // supported deposit), never merely "some" matching option.
+        $deposit = RateHawkBookingService::selectDeposit($form['payment_types'] ?? null);
+        if ($deposit === null) {
             throw new RuntimeException('Valid deposit payment option is required.');
+        }
+        $price = DB::table('rt_booking_price_snapshots')
+            ->where('booking_id', $bookingId)->orderByDesc('version')->first();
+        if (!$price || $price->supplier_cost === null
+            || !preg_match('/^\d+(?:\.\d{1,6})?$/D', (string) $price->supplier_cost)
+            || bccomp((string) $price->supplier_cost, '0', 6) <= 0
+            || trim((string) $price->currency) !== $deposit['currency_code']
+            || bccomp((string) $price->supplier_cost, $deposit['amount'], 6) !== 0) {
+            throw new RuntimeException('Supplier deposit does not match latest verified supplier cost.');
         }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($phone) < 5 || strlen($phone) > 35) {
             throw new RuntimeException('Invalid booking contact details.');
@@ -279,6 +275,15 @@ final class RateHawkBookingOrchestrator
                     }
                 }
             }
+        }
+        // Build (without sending) the exact supplier payload so every adapter-level
+        // check also runs BEFORE the irreversible finish_unknown marker.
+        try {
+            $this->rateHawk->buildFinishPayload(
+                (string) $attempt->request_key, $form, $rooms, $email, $phone, $comment
+            );
+        } catch (Throwable $e) {
+            throw new RuntimeException('Invalid booking finish input: ' . $e->getMessage(), 0, $e);
         }
     }
 
