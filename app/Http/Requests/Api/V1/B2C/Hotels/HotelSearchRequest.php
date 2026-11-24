@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1\B2C\Hotels;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Services\Hotels\RateHawkDestinationService;
 use Illuminate\Validation\Rule;
 
 class HotelSearchRequest extends FormRequest
@@ -20,7 +21,7 @@ class HotelSearchRequest extends FormRequest
         // Preserve all other user-supplied values.
         $normalized = [];
 
-        foreach (['residency', 'language', 'currency'] as $field) {
+        foreach (['residency', 'language', 'currency', 'destination'] as $field) {
             $value = $this->input($field);
 
             if (is_string($value)) {
@@ -48,14 +49,29 @@ class HotelSearchRequest extends FormRequest
                 'after:checkin',
             ],
 
+            // Either a destination token from the destinations API
+            // ("region:<id>" or a legacy slug such as "dubai"), or coordinates.
+            'destination' => [
+                'required_without_all:latitude,longitude',
+                'string',
+                'max:40',
+                'regex:' . RateHawkDestinationService::TOKEN_PATTERN,
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (is_string($value)
+                        && app(RateHawkDestinationService::class)->resolve($value) === null) {
+                        $fail('The selected destination is not supported.');
+                    }
+                },
+            ],
+
             'latitude' => [
-                'required',
+                'required_without:destination',
                 'numeric',
                 'between:-90,90',
             ],
 
             'longitude' => [
-                'required',
+                'required_without:destination',
                 'numeric',
                 'between:-180,180',
             ],

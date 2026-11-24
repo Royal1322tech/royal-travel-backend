@@ -23,6 +23,61 @@ class RateHawkSearchService
      */
     public function searchByGeo(array $params): array
     {
+        $base = $this->basePayload($params);
+
+        $latitude = $params['latitude'] ?? null;
+        $longitude = $params['longitude'] ?? null;
+        $radius = $params['radius'] ?? 10000;
+
+        if (
+            ! is_numeric($latitude) ||
+            ! is_numeric($longitude) ||
+            (float) $latitude < -90 ||
+            (float) $latitude > 90 ||
+            (float) $longitude < -180 ||
+            (float) $longitude > 180 ||
+            ! is_numeric($radius) ||
+            (float) $radius <= 0
+        ) {
+            throw new InvalidArgumentException(
+                'Invalid geographic search parameters.'
+            );
+        }
+
+        // Historical payload key order: location before currency.
+        $payload = $this->withoutCurrency($base) + [
+            'latitude' => (float) $latitude,
+            'longitude' => (float) $longitude,
+            'radius' => (int) $radius,
+            'currency' => $base['currency'],
+        ];
+
+        return $this->send('/api/b2b/v3/search/serp/geo/', $payload);
+    }
+
+    /**
+     * Supplier-facing region search (POST /api/b2b/v3/search/serp/region/).
+     * region_id comes from RateHawk multicomplete data.regions[].id.
+     */
+    public function searchByRegion(array $params): array
+    {
+        $base = $this->basePayload($params);
+        $regionId = $params['region_id'] ?? null;
+
+        if (! is_int($regionId) || $regionId < 1) {
+            throw new InvalidArgumentException('Invalid region id.');
+        }
+
+        $payload = $this->withoutCurrency($base) + [
+            'region_id' => $regionId,
+            'currency' => $base['currency'],
+        ];
+
+        return $this->send('/api/b2b/v3/search/serp/region/', $payload);
+    }
+
+    private function basePayload(array $params): array
+    {
         $checkin = (string) ($params['checkin'] ?? '');
         $checkout = (string) ($params['checkout'] ?? '');
 
@@ -72,26 +127,7 @@ class RateHawkSearchService
             }
         }
 
-        $latitude = $params['latitude'] ?? null;
-        $longitude = $params['longitude'] ?? null;
-        $radius = $params['radius'] ?? 10000;
-
-        if (
-            ! is_numeric($latitude) ||
-            ! is_numeric($longitude) ||
-            (float) $latitude < -90 ||
-            (float) $latitude > 90 ||
-            (float) $longitude < -180 ||
-            (float) $longitude > 180 ||
-            ! is_numeric($radius) ||
-            (float) $radius <= 0
-        ) {
-            throw new InvalidArgumentException(
-                'Invalid geographic search parameters.'
-            );
-        }
-
-        $payload = [
+        return [
             'checkin' => $checkin,
             'checkout' => $checkout,
             'residency' => strtolower(
@@ -101,16 +137,23 @@ class RateHawkSearchService
                 (string) ($params['language'] ?? 'en')
             ),
             'guests' => $guests,
-            'latitude' => (float) $latitude,
-            'longitude' => (float) $longitude,
-            'radius' => (int) $radius,
             'currency' => strtoupper(
                 (string) ($params['currency'] ?? 'USD')
             ),
         ];
+    }
 
+    private function withoutCurrency(array $base): array
+    {
+        unset($base['currency']);
+
+        return $base;
+    }
+
+    private function send(string $path, array $payload): array
+    {
         $response = $this->client->post(
-            '/api/b2b/v3/search/serp/geo/',
+            $path,
             $payload
         );
 

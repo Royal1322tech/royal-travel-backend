@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\B2B\Bookings\BookingDraftController;
 |
 | B2B Hotels:
 | POST /b2b/hotels/search
+| GET  /b2b/destinations
 | POST /b2b/hotels/{hid}/rooms
 | POST /b2b/hotels/rooms/select
 | POST /b2b/hotels/rooms/prebook
@@ -177,6 +178,22 @@ Route::post('/b2b/hotels/search', [
         'throttle:20,1',
     ])
     ->name('api.v1.b2b.hotels.search');
+
+/*
+|--------------------------------------------------------------------------
+| Destination Autocomplete - B2B
+|--------------------------------------------------------------------------
+| GET /api/v1/b2b/destinations?q=dub&language=en&limit=10
+| Returns destination ids accepted by POST /b2b/hotels/search ("destination").
+| Results are cached server-side; clients should still debounce keystrokes.
+*/
+Route::get('/b2b/destinations', \App\Http\Controllers\Api\V1\B2B\Hotels\DestinationController::class)
+    ->middleware([
+        'auth:sanctum',
+        'b2b.api.permission:hotels.view',
+        'throttle:30,1',
+    ])
+    ->name('api.v1.b2b.destinations.index');
 
 /*
 |--------------------------------------------------------------------------
