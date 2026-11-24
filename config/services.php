@@ -59,6 +59,14 @@ return [
 
         'api_key' => env('RATEHAWK_API_KEY'),
          'allow_sandbox_finish' => env('RATEHAWK_ALLOW_SANDBOX_FINISH', false),
+
+        // Destination autocomplete scope (GET /api/v1/b2b/destinations, /admin/hotels/destinations):
+        //   all           - worldwide RateHawk multicomplete regions (default)
+        //   sandbox_known - only destinations known to return sandbox inventory
+        //                   (Dubai, Paris, Los Angeles); no supplier call is made.
+        // The RateHawk sandbox returns no regions from multicomplete, so use
+        // sandbox_known until a production key is configured.
+        'destination_scope' => env('RATEHAWK_DESTINATION_SCOPE', 'all'),
     ],
 
     /*

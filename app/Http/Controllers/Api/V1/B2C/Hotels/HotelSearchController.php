@@ -22,6 +22,8 @@ final class HotelSearchController extends Controller
             'HOTEL_SUPPLIER_UNAVAILABLE',
             'HOTEL_SEARCH_NOT_READY' => 503,
 
+            'DESTINATION_NOT_FOUND' => 422,
+
             default => ($result['success'] ?? false) === true
                 ? 200
                 : 500,

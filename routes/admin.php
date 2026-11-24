@@ -216,6 +216,11 @@ Route::prefix('admin')
                 ->middleware('admin.permission:hotels.view')
                 ->name('hotels.index');
 
+            // Destination autocomplete (JSON) for the Admin hotel search.
+            Route::get('/hotels/destinations', \App\Http\Controllers\Admin\HotelDestinationController::class)
+                ->middleware(['admin.permission:hotels.view', 'throttle:30,1'])
+                ->name('hotels.destinations');
+
             Route::get('/hotels/rooms/{token}', [
                 HotelRoomsController::class,
                 'show',

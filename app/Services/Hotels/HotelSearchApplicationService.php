@@ -24,6 +24,7 @@ final class HotelSearchApplicationService
         private readonly RateHawkRateNormalizer $normalizer,
         private readonly RateHawkHotelContentService $content,
         private readonly RateHawkPublicHotelProjector $projector,
+        private readonly RateHawkDestinationService $destinations,
     ) {}
 
     public function search(array $params, string $channel, ?string $companyId = null): array
@@ -43,8 +44,31 @@ final class HotelSearchApplicationService
             return $this->failure('HOTEL_SUPPLIER_UNAVAILABLE', 'Hotel search is currently unavailable.');
         }
 
+        // A destination token (region:<id> or legacy slug) takes precedence over
+        // raw coordinates; it is validated by the request before reaching here.
+        $location = null;
+        if (isset($params['destination']) && is_string($params['destination'])) {
+            $location = $this->destinations->resolve($params['destination']);
+            if ($location === null) {
+                return $this->failure('DESTINATION_NOT_FOUND', 'Destination is not supported.');
+            }
+        }
+
         try {
-            $supplierResult = $this->rateHawk->searchByGeo(array_merge($params, ['currency' => 'USD']));
+            $supplierParams = array_merge($params, ['currency' => 'USD']);
+            unset($supplierParams['destination']);
+            if ($location !== null && $location['mode'] === 'region') {
+                $supplierResult = $this->rateHawk->searchByRegion(
+                    array_merge($supplierParams, ['region_id' => $location['region_id']])
+                );
+            } else {
+                if ($location !== null) {
+                    $supplierParams['latitude'] = $location['latitude'];
+                    $supplierParams['longitude'] = $location['longitude'];
+                    $supplierParams['radius'] = $supplierParams['radius'] ?? $location['radius'];
+                }
+                $supplierResult = $this->rateHawk->searchByGeo($supplierParams);
+            }
         } catch (Throwable $exception) {
             report($exception);
             return $this->failure('HOTEL_SEARCH_NOT_READY', 'Hotel search is temporarily unavailable.');

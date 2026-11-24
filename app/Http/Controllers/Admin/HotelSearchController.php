@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\Hotels\RateHawkDestinationService;
 use App\Services\Hotels\RateHawkHotelContentService;
 use App\Services\Hotels\RateHawkRateNormalizer;
 use App\Services\Hotels\RateHawkSearchService;
@@ -15,12 +16,6 @@ use Throwable;
 
 class HotelSearchController extends Controller
 {
-    private const DESTINATIONS = [
-        'dubai' => ['latitude' => 25.2048, 'longitude' => 55.2708],
-        'cairo' => ['latitude' => 30.0444, 'longitude' => 31.2357],
-        'riyadh' => ['latitude' => 24.7136, 'longitude' => 46.6753],
-    ];
-
     private const OCCUPANCY = [
         '1-2' => ['rooms' => 1, 'adults_per_room' => 2],
         '2-4' => ['rooms' => 2, 'adults_per_room' => 2],
@@ -41,7 +36,8 @@ class HotelSearchController extends Controller
         Request $request,
         RateHawkSearchService $searchService,
         RateHawkHotelContentService $contentService,
-        RateHawkRateNormalizer $rateNormalizer
+        RateHawkRateNormalizer $rateNormalizer,
+        RateHawkDestinationService $destinations
     ) {
         $hotels = [];
         $searchPerformed = false;
@@ -59,7 +55,13 @@ class HotelSearchController extends Controller
 
         $validated = $request->validate([
             'search' => ['required', 'in:1'],
-            'destination' => ['required', Rule::in(array_keys(self::DESTINATIONS))],
+            // Legacy slug (dubai, cairo, riyadh, ...) or "region:<id>" from the destinations API.
+            'destination' => ['required', 'string', 'max:40', 'regex:' . RateHawkDestinationService::TOKEN_PATTERN,
+                function (string $attribute, mixed $value, \Closure $fail) use ($destinations): void {
+                    if (!is_string($value) || $destinations->resolve($value) === null) {
+                        $fail('The selected destination is not supported.');
+                    }
+                }],
             'occupancy' => ['required', Rule::in(array_keys(self::OCCUPANCY))],
             'checkin' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
             'checkout' => ['required', 'date_format:Y-m-d', 'after:checkin'],
@@ -77,7 +79,7 @@ class HotelSearchController extends Controller
         ]);
 
         $searchPerformed = true;
-        $destination = self::DESTINATIONS[$validated['destination']];
+        $destination = $destinations->resolve($validated['destination']);
         $occupancy = self::OCCUPANCY[$validated['occupancy']];
         $guests = [];
 
@@ -89,17 +91,27 @@ class HotelSearchController extends Controller
         }
 
         try {
-            $result = $searchService->searchByGeo([
-                'checkin' => $validated['checkin'],
-                'checkout' => $validated['checkout'],
-                'latitude' => $destination['latitude'],
-                'longitude' => $destination['longitude'],
-                'radius' => 10000,
-                'residency' => $validated['residency'],
-                'currency' => 'USD',
-                'language' => 'en',
-                'guests' => $guests,
-            ]);
+            $result = $destination['mode'] === 'region'
+                ? $searchService->searchByRegion([
+                    'checkin' => $validated['checkin'],
+                    'checkout' => $validated['checkout'],
+                    'region_id' => $destination['region_id'],
+                    'residency' => $validated['residency'],
+                    'currency' => 'USD',
+                    'language' => 'en',
+                    'guests' => $guests,
+                ])
+                : $searchService->searchByGeo([
+                    'checkin' => $validated['checkin'],
+                    'checkout' => $validated['checkout'],
+                    'latitude' => $destination['latitude'],
+                    'longitude' => $destination['longitude'],
+                    'radius' => $destination['radius'],
+                    'residency' => $validated['residency'],
+                    'currency' => 'USD',
+                    'language' => 'en',
+                    'guests' => $guests,
+                ]);
 
             $supplierHotels = $result['hotels'] ?? [];
             $total = $result['total'] ?? count($supplierHotels);
