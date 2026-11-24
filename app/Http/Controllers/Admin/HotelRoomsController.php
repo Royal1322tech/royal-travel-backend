@@ -504,6 +504,7 @@ public function prebook(
             'rooms.*.guests' => ['required', 'array', 'min:1', 'max:20'],
             'rooms.*.guests.*.first_name' => ['required', 'string', 'max:50'],
             'rooms.*.guests.*.last_name' => ['required', 'string', 'max:50'],
+            'rooms.*.guests.*.gender' => ['nullable', 'in:male,female,unknown'],
             'contact_email' => ['required', 'email', 'max:254'],
             'contact_phone' => ['required', 'string', 'max:35'],
             'accept_terms' => ['accepted'],

@@ -208,6 +208,10 @@ final class AdminRateHawkBookingConfirmationService
             if (!$attempt || $attempt->state !== 'form_unknown') {
                 throw new RuntimeException('Unexpected booking attempt state after supplier response.');
             }
+            if (!isset($form['order_id']) || !is_scalar($form['order_id'])
+                || (string) $form['order_id'] === '') {
+                throw new RuntimeException('Supplier form has no order ID.');
+            }
             DB::table('rt_supplier_external_refs')->insert([
                 'id' => (string) Str::uuid(),
                 'attempt_id' => $context['attempt_id'],
@@ -215,10 +219,6 @@ final class AdminRateHawkBookingConfirmationService
                 'reference_kind' => 'ratehawk_order_id',
                 'reference_value' => (string) $form['order_id'],
             ]);
-            if (!isset($form['order_id']) || !is_scalar($form['order_id'])
-                || (string) $form['order_id'] === '') {
-                throw new RuntimeException('Supplier form has no order ID.');
-            }
             DB::table('rt_ratehawk_booking_forms')->insert([
                 'attempt_id' => (string) $attempt->id,
                 'response_encrypted' => $encryptedForm,

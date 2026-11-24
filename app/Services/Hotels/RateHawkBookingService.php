@@ -66,15 +66,28 @@ final class RateHawkBookingService
         string $contactPhone,
         ?string $hotelComment = null
     ): array {
-        self::assertUuid($partnerOrderId);
-        if (($bookingForm['partner_order_id'] ?? null) !== $partnerOrderId) {
-            throw new InvalidArgumentException('Booking form does not match partner order ID.');
-        }
-        $paymentOptions = $bookingForm['payment_types'] ?? null;
+        $payload = $this->buildFinishPayload(
+            $partnerOrderId, $bookingForm, $rooms, $contactEmail, $contactPhone, $hotelComment
+        );
+
+        // IMPORTANT: On HTTP timeout/5xx or API error 'timeout'/'unknown', do not
+        // resend finish blindly. Persist UNKNOWN and checkStatus() instead.
+        $response = $this->client->post('/api/b2b/v3/hotel/order/booking/finish/', $payload, 60);
+        self::requireOk($response, 'Start booking');
+        return ['status' => 'submitted', 'partner_order_id' => $partnerOrderId];
+    }
+
+    /**
+     * The exact deposit option that startBooking() submits to the supplier:
+     * the FIRST deposit option without card data whose amount is a supported
+     * decimal string and whose currency is an ISO code. Callers that validate
+     * the deposit amount MUST use this method so they check the same option.
+     */
+    public static function selectDeposit(mixed $paymentOptions): ?array
+    {
         if (!is_array($paymentOptions)) {
-            throw new InvalidArgumentException('Booking form payment options missing.');
+            return null;
         }
-        $deposit = null;
         foreach ($paymentOptions as $option) {
             if (!is_array($option) || ($option['type'] ?? null) !== 'deposit') {
                 continue;
@@ -85,14 +98,38 @@ final class RateHawkBookingService
             if (self::validAmount($option['amount'] ?? null)
                 && is_string($option['currency_code'] ?? null)
                 && preg_match('/^[A-Z]{3}$/D', $option['currency_code'])) {
-                $deposit = [
+                return [
                     'type' => $option['type'],
                     'amount' => $option['amount'],
                     'currency_code' => $option['currency_code'],
                 ];
-                break;
             }
         }
+        return null;
+    }
+
+    /**
+     * Validate local Finish input and build the exact supplier payload WITHOUT
+     * sending it. Callers run this before committing an irreversible-send marker,
+     * so invalid local input can never leave an attempt in an unknown state.
+     */
+    public function buildFinishPayload(
+        string $partnerOrderId,
+        array $bookingForm,
+        array $rooms,
+        string $contactEmail,
+        string $contactPhone,
+        ?string $hotelComment = null
+    ): array {
+        self::assertUuid($partnerOrderId);
+        if (($bookingForm['partner_order_id'] ?? null) !== $partnerOrderId) {
+            throw new InvalidArgumentException('Booking form does not match partner order ID.');
+        }
+        $paymentOptions = $bookingForm['payment_types'] ?? null;
+        if (!is_array($paymentOptions)) {
+            throw new InvalidArgumentException('Booking form payment options missing.');
+        }
+        $deposit = self::selectDeposit($paymentOptions);
         if ($deposit === null) {
             throw new RuntimeException('No supported deposit payment option on booking form.');
         }
@@ -119,8 +156,7 @@ final class RateHawkBookingService
                 }
                 foreach (['first_name', 'last_name'] as $key) {
                     $name = $guest[$key] ?? null;
-                    if (!is_string($name) || mb_strlen($name) < 1 || mb_strlen($name) > 50
-                        || !preg_match('/^[\p{L}\p{M} \'\-,\.\x{2019}]+$/uD', $name)) {
+                    if (!is_string($name) || !self::validGuestName($name)) {
                         throw new InvalidArgumentException("Invalid guest {$key}.");
                     }
                 }
@@ -154,12 +190,14 @@ final class RateHawkBookingService
         if ($hotelComment !== null) {
             $payload['user']['comment'] = $hotelComment;
         }
+        return $payload;
+    }
 
-        // IMPORTANT: On HTTP timeout/5xx or API error 'timeout'/'unknown', do not
-        // resend finish blindly. Persist UNKNOWN and checkStatus() instead.
-        $response = $this->client->post('/api/b2b/v3/hotel/order/booking/finish/', $payload, 60);
-        self::requireOk($response, 'Start booking');
-        return ['status' => 'submitted', 'partner_order_id' => $partnerOrderId];
+    /** Guest name format accepted by the supplier Finish request. */
+    public static function validGuestName(string $name): bool
+    {
+        return mb_strlen($name) >= 1 && mb_strlen($name) <= 50
+            && preg_match('/^[\p{L}\p{M} \'\-,\.\x{2019}]+$/uD', $name) === 1;
     }
 
     /** One status check only. Polling and deadlines belong to the orchestrator. */

@@ -170,6 +170,17 @@
                                                 maxlength="50" required autocomplete="off"
                                                 class="mt-1 w-full rounded-xl border border-slate-300 p-3">
                                         </div>
+                                        <div>
+                                            <label for="guest_{{ $roomIndex }}_{{ $guestIndex }}_gender" class="block text-xs font-medium text-slate-700">Gender <span class="text-slate-400">(required by some hotels)</span></label>
+                                            @php $oldGender = old("rooms.$roomIndex.guests.$guestIndex.gender"); @endphp
+                                            <select id="guest_{{ $roomIndex }}_{{ $guestIndex }}_gender"
+                                                name="rooms[{{ $roomIndex }}][guests][{{ $guestIndex }}][gender]"
+                                                class="mt-1 w-full rounded-xl border border-slate-300 p-3">
+                                                <option value="">Not specified</option>
+                                                <option value="male" @selected($oldGender === 'male')>Male</option>
+                                                <option value="female" @selected($oldGender === 'female')>Female</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             @endforeach

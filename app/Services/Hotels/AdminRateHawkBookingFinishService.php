@@ -50,8 +50,11 @@ final class AdminRateHawkBookingFinishService
         // Revalidate under lock immediately before committing the irreversible-send marker.
         $data = DB::transaction(function () use ($bookingId): array {
             $data = $this->loadAndValidate($bookingId, true);
-            DB::table('rt_supplier_booking_attempts')->where('id', $data['attempt']->id)
+            $claimed = DB::table('rt_supplier_booking_attempts')->where('id', $data['attempt']->id)
                 ->where('state', 'form_ready')->update(['state' => 'finish_unknown']);
+            if ($claimed !== 1) {
+                throw new RuntimeException('Finish was already claimed.');
+            }
             return $data;
         }, 3);
 
@@ -179,20 +182,10 @@ final class AdminRateHawkBookingFinishService
                 ->where('reference_value', (string) $form['order_id'])->exists()) {
             throw new RuntimeException('Stored booking form does not match supplier references.');
         }
-        // RateHawkBookingService selects the FIRST eligible deposit; match precisely.
-        $deposit = null;
-        foreach (($form['payment_types'] ?? []) as $option) {
-            if (is_array($option) && ($option['type'] ?? null) === 'deposit'
-                && ($option['is_need_credit_card_data'] ?? false) === false
-                && is_numeric($option['amount'] ?? null)
-                && is_string($option['currency_code'] ?? null)
-                && preg_match('/^[A-Z]{3}$/D', $option['currency_code'])) {
-                $deposit = $option; break;
-            }
-        }
-        if (!$deposit || $deposit['currency_code'] !== 'USD'
-            || !preg_match('/^\d+(?:\.\d{1,6})?$/D', (string) $deposit['amount'])
-            || bccomp((string) $deposit['amount'], (string) $price->supplier_cost, 6) !== 0) {
+        // Validate the EXACT deposit option RateHawkBookingService will submit.
+        $deposit = RateHawkBookingService::selectDeposit($form['payment_types'] ?? null);
+        if ($deposit === null || $deposit['currency_code'] !== 'USD'
+            || bccomp($deposit['amount'], (string) $price->supplier_cost, 6) !== 0) {
             throw new RuntimeException('Booking form deposit differs from verified supplier cost.');
         }
         $contact = DB::table('rt_booking_supplier_contacts')->where('booking_id', $bookingId)->first();
@@ -203,7 +196,7 @@ final class AdminRateHawkBookingFinishService
             throw new RuntimeException('Invalid contact details.');
         }
         $guests = DB::table('rt_booking_guests')->where('booking_id', $bookingId)
-            ->orderBy('room_index')->orderByDesc('is_lead')->orderBy('id')->get();
+            ->orderBy('room_index')->orderByDesc('is_lead')->orderBy('guest_type')->orderBy('id')->get();
         $rooms = [];
         foreach ($guests as $guest) {
             $index = (int) $guest->room_index;
@@ -225,6 +218,13 @@ final class AdminRateHawkBookingFinishService
                     if (!isset($guest['gender'])) { throw new RuntimeException('Supplier requires guest gender.'); }
                 }
             }
+        }
+        // Build (without sending) the exact supplier payload now, so invalid local
+        // input fails BEFORE the irreversible finish_unknown marker is committed.
+        try {
+            $this->rateHawk->buildFinishPayload((string) $attempt->request_key, $form, $rooms, $email, $phone);
+        } catch (Throwable $e) {
+            throw new RuntimeException('Invalid booking finish input: ' . $e->getMessage(), 0, $e);
         }
         return compact('attempt', 'form', 'rooms', 'email', 'phone', 'price');
     }

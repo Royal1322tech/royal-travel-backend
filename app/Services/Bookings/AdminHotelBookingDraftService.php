@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Services\Bookings;
 use Illuminate\Support\Facades\Log;
 use App\Modules\Identity\Models\Company;
+use App\Services\Hotels\RateHawkBookingService;
 use App\Services\Hotels\RateHawkPriceResolver;
 use App\Services\Hotels\RateHawkRateNormalizer;
 use App\Services\Pricing\HotelCurrencyQuoteService;
@@ -83,6 +84,14 @@ final class AdminHotelBookingDraftService
                         throw new HttpException(409, 'Child age is outside the supplier-supported range.');
                     }
                 }
+                foreach (['first_name', 'last_name'] as $field) {
+                    if (!is_string($guest[$field] ?? null)
+                        || !RateHawkBookingService::validGuestName(trim($guest[$field]))) {
+                        throw ValidationException::withMessages([
+                            'rooms' => 'Guest names must use letters, spaces, apostrophes, hyphens, commas or periods only.',
+                        ]);
+                    }
+                }
                 $gender = $guest['gender'] ?? null;
                 if ($gender !== null && !in_array($gender, ['male', 'female', 'unknown'], true)) {
                     throw ValidationException::withMessages(['rooms' => 'Invalid guest gender.']);
@@ -149,7 +158,7 @@ final class AdminHotelBookingDraftService
         if (!$supplierId) {
             throw new HttpException(409, 'Active RateHawk supplier is not configured.');
         }
-        $quote = app(HotelCurrencyQuoteService::class)->quoteVerifiedUsd($supplierCost, $channel, 'USD');
+        $quote = app(HotelCurrencyQuoteService::class)->quoteVerifiedUsd($supplierCost, $channel, 'USD', $companyId);
         $currency = strtoupper((string) ($quote['currency'] ?? ''));
         $total = (string) ($quote['customer_selling_price'] ?? '');
         if ($currency !== 'USD' || !preg_match('/^\d+(?:\.\d{1,2})?$/D', $total) || (float) $total <= 0) {
