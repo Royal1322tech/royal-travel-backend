@@ -311,18 +311,19 @@ Route::prefix('b2b/bookings')
     });
 
 Route::post('/b2b/bookings/{booking}/confirm', [\App\Http\Controllers\Api\V1\B2B\Bookings\BookingConfirmationController::class,'confirm'])
-    ->middleware(['auth:sanctum','b2b.api.permission:bookings.create','throttle:5,1'])->name('api.v1.b2b.bookings.confirm');
+    ->middleware(['auth:sanctum','b2b.api.permission:bookings.create','throttle:5,1,b2b-booking-confirm:'])->name('api.v1.b2b.bookings.confirm');
 Route::get('/b2b/bookings/{booking}/status', [\App\Http\Controllers\Api\V1\B2B\Bookings\BookingConfirmationController::class,'status'])
-    ->middleware(['auth:sanctum','b2b.api.permission:bookings.view','throttle:30,1'])->name('api.v1.b2b.bookings.status');
+    ->middleware(['auth:sanctum','b2b.api.permission:bookings.view','throttle:30,1,b2b-booking-status:'])->name('api.v1.b2b.bookings.status');
 
 // Booking support: employee-owned tickets only.
-Route::middleware(['auth:sanctum','b2b.api.permission:bookings.view','throttle:30,1'])->group(function(){
+// Throttle prefixes give these routes their own counters: an unprefixed throttle key is
+// shared by every throttled route for the same user, and stacked limits double-count.
+Route::middleware(['auth:sanctum','b2b.api.permission:bookings.view','throttle:30,1,b2b-tickets:'])->group(function(){
  $c=\App\Http\Controllers\Api\V1\B2B\Bookings\SupportTicketController::class;
  Route::get('/b2b/tickets/categories',[$c,'categories']);
  Route::get('/b2b/tickets',[$c,'index']);
  Route::get('/b2b/tickets/{ticket}',[$c,'show'])->whereUuid('ticket');
  Route::get('/b2b/bookings/{booking}/tickets',[$c,'forBooking'])->whereUuid('booking');
- Route::post('/b2b/bookings/{booking}/tickets',[$c,'store'])->whereUuid('booking')->middleware('throttle:5,1');
- Route::post('/b2b/tickets/{ticket}/messages',[$c,'reply'])->whereUuid('ticket')->middleware('throttle:10,1');
+ Route::post('/b2b/bookings/{booking}/tickets',[$c,'store'])->whereUuid('booking')->middleware('throttle:5,1,b2b-ticket-create:');
+ Route::post('/b2b/tickets/{ticket}/messages',[$c,'reply'])->whereUuid('ticket')->middleware('throttle:10,1,b2b-ticket-reply:');
 });
-

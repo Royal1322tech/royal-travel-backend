@@ -83,7 +83,7 @@ Route::prefix('admin')
                 ->middleware('admin.permission:bookings.view')->name('bookings.show');
             foreach (['prepare' => 'prepareSandbox', 'finish' => 'finishSandbox', 'reconcile' => 'reconcileSandbox'] as $action => $method) {
                 Route::post('/bookings/{id}/sandbox/'.$action, [BookingController::class, $method])->whereUuid('id')
-                    ->middleware(['admin.permission:bookings.view', 'admin.permission:bookings.manage', 'throttle:5,1'])
+                    ->middleware(['admin.permission:bookings.view', 'admin.permission:bookings.manage', 'throttle:5,1,admin-booking-sandbox:'])
                     ->name('bookings.sandbox.'.$action);
             }
 
@@ -440,5 +440,5 @@ Route::prefix('admin/support-tickets')->name('admin.support.')->middleware(['aut
  $c=\App\Http\Controllers\Admin\SupportTicketController::class;
  Route::get('/',[$c,'index'])->name('index');
  Route::get('/{ticket}',[$c,'show'])->whereUuid('ticket')->name('show');
- Route::post('/{ticket}',[$c,'update'])->whereUuid('ticket')->middleware(['admin.permission:bookings.manage','throttle:10,1'])->name('update');
+ Route::post('/{ticket}',[$c,'update'])->whereUuid('ticket')->middleware(['admin.permission:bookings.manage','throttle:10,1,admin-support-update:'])->name('update');
 });

@@ -27,5 +27,27 @@ final class SupportTicketController extends Controller {
   });
  }
  public function show(Request $r,string $ticket){$t=$this->scope($r)->where('id',$ticket)->first();abort_unless($t,404);return response()->json(['ticket'=>$this->present($t),'messages'=>DB::table('rt_support_ticket_messages')->where('ticket_id',$ticket)->select('id','actor_type','body','created_at')->orderBy('created_at')->orderBy('id')->paginate(50)])->header('Cache-Control','no-store');}
- public function reply(Request $r,string $ticket){$d=$r->validate(['message'=>'required|string|max:5000']);return DB::transaction(function()use($r,$ticket,$d){$t=$this->scope($r)->where('id',$ticket)->lockForUpdate()->first();abort_unless($t,404);abort_if(in_array($t->status,['resolved','closed']),409);DB::table('rt_support_ticket_messages')->insert(['id'=>(string)Str::uuid(),'ticket_id'=>$ticket,'actor_user_id'=>$r->user()->id,'actor_type'=>'employee','body'=>$d['message'],'created_at'=>now(),'updated_at'=>now()]);return response()->json(['status'=>'sent'],201);});}
+ /**
+  * Optional Idempotency-Key (16-128 chars of [A-Za-z0-9_-]): a retry with the same key and
+  * message returns 200 with the original message id instead of posting a duplicate; the
+  * same key with a different message is 409. Without the header behaviour is unchanged.
+  */
+ public function reply(Request $r,string $ticket){
+  $d=$r->validate(['message'=>'required|string|max:5000']);
+  $raw=$r->header('Idempotency-Key');
+  abort_unless($raw===null || (is_string($raw) && preg_match('/^[A-Za-z0-9_-]{16,128}$/D',$raw)),422,'Invalid Idempotency-Key.');
+  $key=$raw===null?null:hash('sha256',$raw); $hash=hash('sha256',json_encode([$ticket,$d['message']],JSON_THROW_ON_ERROR));
+  return DB::transaction(function()use($r,$ticket,$d,$key,$hash){
+   $t=$this->scope($r)->where('id',$ticket)->lockForUpdate()->first();abort_unless($t,404);
+   if($key!==null){
+    $prior=DB::table('rt_support_ticket_messages')->where('ticket_id',$ticket)->where('actor_user_id',$r->user()->id)->where('request_key',$key)->first();
+    if($prior){abort_unless(hash_equals((string)$prior->request_hash,$hash),409,'Idempotency conflict.');return response()->json(['status'=>'sent','message_id'=>$prior->id],200);}
+   }
+   abort_if(in_array($t->status,['resolved','closed'],true),409,'Ticket is resolved or closed.');
+   $id=(string)Str::uuid();
+   DB::table('rt_support_ticket_messages')->insert(['id'=>$id,'ticket_id'=>$ticket,'actor_user_id'=>$r->user()->id,'actor_type'=>'employee','body'=>$d['message'],'request_key'=>$key,'request_hash'=>$key===null?null:$hash,'created_at'=>now(),'updated_at'=>now()]);
+   DB::table('rt_support_tickets')->where('id',$ticket)->update(['updated_at'=>now()]);
+   return response()->json(['status'=>'sent','message_id'=>$id],201);
+  });
+ }
 }

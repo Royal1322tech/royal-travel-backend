@@ -16,6 +16,9 @@ return new class extends Migration {
   Schema::create('rt_support_ticket_messages', function(Blueprint $t){
    $t->uuid('id')->primary(); $t->foreignUuid('ticket_id')->constrained('rt_support_tickets');
    $t->foreignId('actor_user_id')->constrained('users'); $t->string('actor_type',20); $t->text('body'); $t->timestamps();
+   // Optional client Idempotency-Key for replies (hashed); NULLs never conflict.
+   $t->string('request_key',64)->nullable(); $t->string('request_hash',64)->nullable();
+   $t->unique(['ticket_id','actor_user_id','request_key']); $t->index(['ticket_id','created_at']);
   });
   Schema::create('rt_support_ticket_events', function(Blueprint $t){
    $t->uuid('id')->primary(); $t->foreignUuid('ticket_id')->constrained('rt_support_tickets');

@@ -22,6 +22,21 @@ final class BookingConfirmationController extends Controller
     {
         return DB::table('rt_supplier_booking_attempts')->where('booking_id',$id)->where('operation','ratehawk_hotel_booking')->first();
     }
+    /**
+     * Prebook expired. If funds are held but Finish was never claimed (prepared or
+     * form_ready), no supplier booking can exist: abandon and release. Otherwise
+     * nothing is released.
+     */
+    private function expire(RateHawkBookingOrchestrator $flow, string $booking): never
+    {
+        $a=$this->attempt($booking);
+        if ($a && in_array($a->state,['prepared','form_ready'],true)) {
+            $flow->abandonBeforeFinish($booking);
+            abort(410,'Prebook expired before the supplier booking was submitted. Held funds were released; create a new draft.');
+        }
+        abort(410,'Prebook expired.');
+    }
+
     public function status(Request $request, string $booking)
     {
         $b=$this->booking($request,$booking); $a=$this->attempt($booking);
@@ -47,7 +62,7 @@ final class BookingConfirmationController extends Controller
             $contact=DB::table('rt_booking_supplier_contacts')->where('booking_id',$booking)->first();
             abort_unless($offer && $price && $hotel && $contact && $offer->environment==='sandbox' && $b->currency==='USD' && $price->currency==='USD' && $offer->currency==='USD' && $offer->prebook_hash===$hotel->supplier_offer_ref && str_starts_with($offer->prebook_hash,'p-') && $price->supplier_cost!==null && $price->admin_markup!==null && $b->approved_total!==null && bccomp($offer->supplier_cost,$price->supplier_cost,6)===0 && bccomp(bcadd($price->supplier_cost,$price->admin_markup,6),$b->approved_total,6)===0,409,'Invalid booking context.');
             $at=\Illuminate\Support\Carbon::parse($offer->prebook_verified_at);
-            abort_if($at->isFuture() || $at->lte(now()->subMinutes(10)),410,'Prebook expired.');
+            if ($at->isFuture() || $at->lte(now()->subMinutes(10))) { $this->expire($flow,$booking); }
             abort_unless(DB::table('rt_suppliers')->where('id',$b->supplier_id)->where('code','RATEHAWK')->where('adapter_code','RATEHAWK')->where('status','active')->exists(),409,'Supplier unavailable.');
             $email=Crypt::decryptString($contact->email_encrypted); $phone=Crypt::decryptString($contact->phone_encrypted);
             $rooms=[];
@@ -62,7 +77,7 @@ final class BookingConfirmationController extends Controller
             if (!$a) { $flow->prepare($booking); $a=$this->attempt($booking); }
             if ($a->state==='prepared') { $form=$flow->createForm($booking,$offer->prebook_hash,$request->ip()); }
             else { $stored=DB::table('rt_ratehawk_booking_forms')->where('attempt_id',$a->id)->first(); abort_unless($stored,409,'Manual form recovery required.'); $form=json_decode(Crypt::decryptString($stored->response_encrypted),true,512,JSON_THROW_ON_ERROR); }
-            abort_if($at->lte(now()->subMinutes(10)),410,'Prebook expired; manual review required.');
+            if ($at->lte(now()->subMinutes(10))) { $this->expire($flow,$booking); }
             $flow->startBooking($booking,$form,$rooms,$email,$phone);
             $flow->reconcile($booking);
             return $this->status($request,$booking);

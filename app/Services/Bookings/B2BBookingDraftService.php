@@ -196,11 +196,28 @@ final class B2BBookingDraftService
                     'is_lead' => $guest['is_lead'], 'room_index'=>$guest['room_index'], 'age'=>$guest['age'] ?? null, 'gender'=>$guest['gender'] ?? null,
                 ]);
             }
+            // Two immutable snapshots, inserted together:
+            // v1 (approved) is what Royal charges the agency (agency purchase price). The
+            //    deferred rt_booking_price_consistency trigger requires approved_total to
+            //    equal an APPROVED snapshot's customer_total, and the wallet reserves
+            //    approved_total, so this is the amount held and captured.
+            // v2 (latest, informational) is the agency's selling price to its customer,
+            //    which the B2B read API shows as customer_total. supplier_cost + admin_markup
+            //    on both equals the agency purchase price.
+            $adminMarkup = bcsub($purchase, $cost, 2);
             DB::table('rt_booking_price_snapshots')->insert([
                 'id' => (string) Str::uuid(), 'booking_id' => $bookingId,
                 'version' => 1, 'currency' => $currency,
-                // The current review only supplies an agency purchase price, not the raw supplier cost.
-                'supplier_cost' => $cost, 'admin_markup' => bcsub($purchase,$cost,2), 'company_markup' => bcsub($total,$purchase,2),
+                'supplier_cost' => $cost, 'admin_markup' => $adminMarkup, 'company_markup' => null,
+                'discount_amount' => 0, 'fee_amount' => 0, 'tax_amount' => 0,
+                'customer_total' => $purchase,
+                'approved_by' => $userId, 'approved_at' => $now,
+                'created_at' => $now,
+            ]);
+            DB::table('rt_booking_price_snapshots')->insert([
+                'id' => (string) Str::uuid(), 'booking_id' => $bookingId,
+                'version' => 2, 'currency' => $currency,
+                'supplier_cost' => $cost, 'admin_markup' => $adminMarkup, 'company_markup' => bcsub($total, $purchase, 2),
                 'discount_amount' => 0, 'fee_amount' => 0, 'tax_amount' => 0,
                 'customer_total' => $total, 'created_at' => $now,
             ]);

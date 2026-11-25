@@ -125,6 +125,39 @@ final class RateHawkBookingOrchestrator
     }
 
     /**
+     * Abandon a booking whose supplier Finish was NEVER claimed (attempt prepared or
+     * form_ready), e.g. after the prebook expired, and release the held wallet funds.
+     * No supplier booking can exist in these states: Finish is only sent after the
+     * irreversible finish_unknown marker. Every uncertain state (form_unknown,
+     * finish_unknown, processing) is refused and stays held for manual review.
+     */
+    public function abandonBeforeFinish(string $bookingId): array
+    {
+        return DB::transaction(function () use ($bookingId): array {
+            $booking = Booking::query()->whereKey($bookingId)->lockForUpdate()->firstOrFail();
+            $this->assertB2BHotel($booking);
+            $attempt = SupplierBookingAttempt::query()
+                ->where('booking_id', $bookingId)->where('operation', self::OPERATION)
+                ->lockForUpdate()->first();
+            if ($booking->status !== 'draft' || $attempt === null
+                || !in_array($attempt->state, ['prepared', 'form_ready'], true)) {
+                throw new RuntimeException('Booking cannot be abandoned safely; manual review required.');
+            }
+            $attempt->state = 'abandoned';
+            $attempt->finished_at = now();
+            $attempt->save();
+            $booking->status = 'failed';
+            $booking->save();
+            $held = DB::table('rt_financial_reservations')
+                ->where('booking_id', $bookingId)->where('state', 'held')->exists();
+            if ($held) {
+                $this->wallet->release($bookingId);
+            }
+            return ['booking_id' => $bookingId, 'status' => 'failed', 'funds_released' => $held];
+        });
+    }
+
+    /**
      * Safe for repeated calls; only status lookup is repeated, never finish.
      */
     public function reconcile(string $bookingId): array
