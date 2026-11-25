@@ -95,6 +95,7 @@
                 <div role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
                     Draft saved: {{ session('draft_saved')['booking_no'] }} — {{ session('draft_saved')['status'] }}.
                     No payment collected and no supplier booking created.
+                    <a class="underline font-semibold" href="{{ route('admin.bookings.show', session('draft_saved')['booking_id']) }}">Open Booking Details</a>
                 </div>
             @endif
             @if (!empty($token))

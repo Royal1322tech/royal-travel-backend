@@ -79,6 +79,14 @@ Route::prefix('admin')
                 ->middleware('admin.permission:bookings.view')
                 ->name('bookings.index');
 
+            Route::get('/bookings/{id}', [BookingController::class, 'show'])->whereUuid('id')
+                ->middleware('admin.permission:bookings.view')->name('bookings.show');
+            foreach (['prepare' => 'prepareSandbox', 'finish' => 'finishSandbox', 'reconcile' => 'reconcileSandbox'] as $action => $method) {
+                Route::post('/bookings/{id}/sandbox/'.$action, [BookingController::class, $method])->whereUuid('id')
+                    ->middleware(['admin.permission:bookings.view', 'admin.permission:bookings.manage', 'throttle:5,1,admin-booking-sandbox:'])
+                    ->name('bookings.sandbox.'.$action);
+            }
+
             /* Price reduction request administration. */
             Route::get('/price-reduction-requests',
                 [\App\Http\Controllers\Admin\PriceReductionRequestController::class,'index'])
@@ -157,6 +165,11 @@ Route::prefix('admin')
             ])
                 ->middleware('admin.permission:companies.create')
                 ->name('companies.store');
+
+            Route::get('/company-finance', [\App\Http\Controllers\Admin\B2BFinanceController::class,'index'])
+                ->middleware('admin.permission:companies.view')->name('companies.finance.index');
+            Route::get('/company-finance/{company}', [\App\Http\Controllers\Admin\B2BFinanceController::class,'show'])
+                ->middleware('admin.permission:companies.view')->name('companies.finance.show');
 
             Route::post('/companies/{company}/finance', [\App\Http\Controllers\Admin\B2BFinanceController::class,'update'])
                 ->middleware('admin.permission:companies.manage')->name('companies.finance.update');
@@ -259,10 +272,7 @@ Route::get(
             // Confirm a hotel booking only through the protected booking workflow.
             // The controller's confirm() method and supplier orchestration must
             // be implemented and tested before enabling the UI action.
-            Route::post('/hotels/rooms/review/{token}/confirm', [
-                HotelRoomsController::class,
-                'confirm',
-            ])
+            Route::post('/hotels/rooms/review/{token}/confirm', function () { abort(409, 'Save a draft and open Booking Details.'); })
                 ->middleware([
                     'admin.permission:bookings.manage',
                     'throttle:5,1',
@@ -425,3 +435,10 @@ Route::get(
 
         });
     });
+
+Route::prefix('admin/support-tickets')->name('admin.support.')->middleware(['auth','admin.permission:bookings.view'])->group(function(){
+ $c=\App\Http\Controllers\Admin\SupportTicketController::class;
+ Route::get('/',[$c,'index'])->name('index');
+ Route::get('/{ticket}',[$c,'show'])->whereUuid('ticket')->name('show');
+ Route::post('/{ticket}',[$c,'update'])->whereUuid('ticket')->middleware(['admin.permission:bookings.manage','throttle:10,1,admin-support-update:'])->name('update');
+});
