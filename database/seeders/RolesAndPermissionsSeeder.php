@@ -30,6 +30,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'reports.view',
             'loyalty.view',
             'loyalty.manage',
+            // Admin sidebar pages, matching the grants authorized on staging
+            // (Pricing & Commissions, Exchange Rates, Users, Roles view).
+            'pricing.royal.manage',
+            'fx.view',
+            'fx.manage',
+            'roles.view',
         ];
 
         $roles = [
@@ -49,6 +55,8 @@ class RolesAndPermissionsSeeder extends Seeder
                     'bookings.cancel',
                     'payments.view',
                     'reports.view',
+                    // Company owners manage their own company's B2B hotel markup.
+                    'pricing.company.manage',
                 ],
             ],
             'company_employee' => [
@@ -96,6 +104,12 @@ if ($existing && $existing->portal !== $data['portal']) {
                 }
 
                 foreach ($data['permissions'] as $permissionCode) {
+                    // Role-only codes (e.g. pricing.company.manage) are registered here so a
+                    // fresh install never grants a null permission id.
+                    DB::table('rt_permissions')->insertOrIgnore([
+                        'code' => $permissionCode,
+                        'description' => $permissionCode,
+                    ]);
                     $permissionId = DB::table('rt_permissions')
                         ->where('code', $permissionCode)
                         ->value('id');
