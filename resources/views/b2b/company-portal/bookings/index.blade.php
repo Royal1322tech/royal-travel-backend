@@ -270,7 +270,7 @@
                     <th>Check-in</th>
                     <th>Check-out</th>
                     <th>Status</th>
-                    <th>Total</th>
+                    <th>Agency Purchase Price</th>
                     <th>Action</th>
                 </tr>
 

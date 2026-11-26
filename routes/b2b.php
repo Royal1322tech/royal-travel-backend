@@ -34,7 +34,7 @@ Route::prefix('b2b/company')
             AuthController::class,
             'login'
         ])
-            ->middleware('throttle:5,1')
+            ->middleware('throttle:5,1,company-portal-login:')
             ->name('login.submit');
 
         Route::middleware(EnsureCompanyPortalOwner::class)
@@ -105,7 +105,9 @@ Route::middleware('company.permission:bookings.view')
                 Route::post('/employees', [
                     EmployeeController::class,
                     'store'
-                ])->name('employees.store');
+                ])
+                    ->middleware('throttle:10,1,company-portal-employee-create:')
+                    ->name('employees.store');
 
                 /*
                 |--------------------------------------------------------------------------
@@ -126,17 +128,22 @@ Route::middleware('company.permission:bookings.view')
                         MarkupController::class,
                         'save'
                     ])
-                        ->middleware('throttle:10,1')
+                        ->middleware('throttle:10,1,company-portal-markup:')
                         ->name('markup.save');
 
                 });
 
-                Route::post('/logout', [
-                    AuthController::class,
-                    'logout'
-                ])->name('logout');
-
             });
+
+        // Logout is deliberately OUTSIDE the owner gate: a user whose owner access was
+        // revoked mid-session must still be able to end that session. It exposes no
+        // company data, and CSRF protection comes from the web middleware group.
+        Route::post('/logout', [
+            AuthController::class,
+            'logout'
+        ])
+            ->middleware('throttle:20,1,company-portal-logout:')
+            ->name('logout');
     });
 
 /*

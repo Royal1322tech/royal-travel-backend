@@ -65,7 +65,8 @@ final class BookingController extends Controller
         $stats = [
             'total' => $statusCounts->sum(),
             'confirmed' => $statusCounts->get('confirmed', 0),
-            'pending' => $statusCounts->get('pending', 0),
+            // Awaiting the supplier: both the legacy pending and pending_supplier states.
+            'pending' => $statusCounts->get('pending', 0) + $statusCounts->get('pending_supplier', 0),
             'cancelled' => $statusCounts->get('cancelled', 0),
         ];
 

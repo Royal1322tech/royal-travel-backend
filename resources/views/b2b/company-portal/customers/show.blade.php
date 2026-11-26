@@ -127,7 +127,7 @@
                     <th>Booking Reference</th>
                     <th>Booked By</th>
                     <th>Status</th>
-                    <th>Total</th>
+                    <th>Agency Purchase Price</th>
                     <th>Date</th>
                     <th>Action</th>
                 </tr>

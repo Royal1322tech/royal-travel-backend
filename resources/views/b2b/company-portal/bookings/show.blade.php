@@ -238,7 +238,7 @@
     <h2 style="margin-top:0">Booking Price</h2>
 
     <div class="detail-label">
-        Approved Booking Total
+        Agency Purchase Price (charged to company wallet)
     </div>
 
     <div style="font-size:30px;font-weight:700">

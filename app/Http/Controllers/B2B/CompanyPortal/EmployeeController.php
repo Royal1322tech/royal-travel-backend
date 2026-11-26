@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class EmployeeController extends Controller
 {
@@ -23,6 +25,7 @@ class EmployeeController extends Controller
                 'u.id as user_id',
                 'u.name',
                 'u.email',
+                'u.email_verified_at',
                 'm.status',
                 'm.created_at'
             )
@@ -59,6 +62,7 @@ class EmployeeController extends Controller
             ],
         ]);
 
+        try {
         DB::transaction(function () use (
             $request,
             $company,
@@ -104,9 +108,17 @@ class EmployeeController extends Controller
                 'created_at' => now(),
             ]);
         });
+        } catch (UniqueConstraintViolationException) {
+            // A concurrent request created the same email after validation passed.
+            throw ValidationException::withMessages([
+                'email' => 'The email has already been taken.',
+            ]);
+        }
 
+        // Employees are created unverified. The existing B2B login requires a verified
+        // email and there is no approved employee activation flow yet, so say so plainly.
         return redirect()
             ->route('company-portal.employees.index')
-            ->with('success', 'Employee created successfully.');
+            ->with('success', 'Employee created. They cannot sign in until their email address is verified.');
     }
 }

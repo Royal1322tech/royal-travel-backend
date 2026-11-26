@@ -11,7 +11,7 @@ final class EnsureCompanyPortalOwner
     public function handle(Request $request, Closure $next): Response
     {
         $access = app(OwnerAccess::class);
-        $user = $request->user();
+        $user = $request->user('web');
         if (! $user) return redirect()->route('company-portal.login');
         $id = $request->session()->get('active_company_id');
         abort_unless($request->session()->get('auth_portal') === 'b2b'

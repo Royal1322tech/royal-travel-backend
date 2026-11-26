@@ -199,6 +199,9 @@
                             <span class="employee-status">
                                 {{ ucfirst($employee->status) }}
                             </span>
+                            @if($employee->email_verified_at === null)
+                                <div style="font-size:12px;color:#b7791f;margin-top:4px">Email not verified, cannot sign in yet</div>
+                            @endif
                         </td>
                         <td>
                             {{ \Carbon\Carbon::parse($employee->created_at)->format('d M Y') }}
