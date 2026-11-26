@@ -34,6 +34,11 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
 
+        // Separate session cookie for the Company Portal; must run before StartSession.
+        $middleware->web(prepend: [
+            \App\Http\Middleware\UseCompanyPortalSessionCookie::class,
+        ]);
+
         $middleware->web(append: [
             SetLocale::class,
         ]);
