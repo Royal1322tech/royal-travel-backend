@@ -6,6 +6,146 @@ use App\Http\Controllers\B2B\HotelSearchController;
 use App\Http\Controllers\B2B\PricingController;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\B2B\CompanyPortal\AuthController;
+use App\Http\Controllers\B2B\CompanyPortal\DashboardController;
+use App\Http\Controllers\B2B\CompanyPortal\EmployeeController;
+use App\Http\Controllers\B2B\CompanyPortal\MarkupController;
+use App\Http\Middleware\EnsureCompanyPortalOwner;
+use App\Http\Controllers\B2B\CompanyPortal\BookingController;
+use App\Http\Controllers\B2B\CompanyPortal\CustomerController;
+use App\Http\Controllers\B2B\CompanyPortal\CompanyProfileController;
+
+/*
+|--------------------------------------------------------------------------
+| B2B Company Portal
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('b2b/company')
+    ->name('company-portal.')
+    ->group(function () {
+
+        Route::get('/login', [
+            AuthController::class,
+            'show'
+        ])->name('login');
+
+        Route::post('/login', [
+            AuthController::class,
+            'login'
+        ])
+            ->middleware('throttle:5,1,company-portal-login:')
+            ->name('login.submit');
+
+        Route::middleware(EnsureCompanyPortalOwner::class)
+            ->group(function () {
+
+
+            /*
+|--------------------------------------------------------------------------
+| Company Customers
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/customers', [
+    CustomerController::class,
+    'index'
+])->name('customers.index');
+
+Route::get('/customers/{id}', [
+    CustomerController::class,
+    'show'
+])->whereUuid('id')->name('customers.show');
+
+/*
+|--------------------------------------------------------------------------
+| Company Profile
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/profile', [
+    CompanyProfileController::class,
+    'index'
+])->name('profile.index');
+
+
+            /*
+|--------------------------------------------------------------------------
+| Company Bookings
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('company.permission:bookings.view')
+    ->group(function () {
+
+        Route::get('/bookings', [
+            BookingController::class,
+            'index'
+        ])->name('bookings.index');
+
+        Route::get('/bookings/{id}', [
+            BookingController::class,
+            'show'
+        ])
+            ->whereUuid('id')
+            ->name('bookings.show');
+
+    });
+
+                Route::get('/dashboard', [
+                    DashboardController::class,
+                    'index'
+                ])->name('dashboard');
+
+                Route::get('/employees', [
+                    EmployeeController::class,
+                    'index'
+                ])->name('employees.index');
+
+                Route::post('/employees', [
+                    EmployeeController::class,
+                    'store'
+                ])
+                    ->middleware('throttle:10,1,company-portal-employee-create:')
+                    ->name('employees.store');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Company Markup
+                |--------------------------------------------------------------------------
+                */
+
+                Route::middleware(
+                    'company.permission:pricing.company.manage'
+                )->group(function () {
+
+                    Route::get('/markup', [
+                        MarkupController::class,
+                        'index'
+                    ])->name('markup.index');
+
+                    Route::post('/markup', [
+                        MarkupController::class,
+                        'save'
+                    ])
+                        ->middleware('throttle:10,1,company-portal-markup:')
+                        ->name('markup.save');
+
+                });
+
+            });
+
+        // Logout is deliberately OUTSIDE the owner gate: a user whose owner access was
+        // revoked mid-session must still be able to end that session. It exposes no
+        // company data, and CSRF protection comes from the web middleware group.
+        Route::post('/logout', [
+            AuthController::class,
+            'logout'
+        ])
+            ->middleware('throttle:20,1,company-portal-logout:')
+            ->name('logout');
+    });
+
 /*
 |--------------------------------------------------------------------------
 | B2B Pricing
